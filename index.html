@@ -100,7 +100,7 @@
           const bajuWidth = width * 0.7;
           const bajuHeight = height * 0.45;
           const bajuX = width * 0.15;
-          const bajuY = height * 0.18; // mulai agak di bawah dagu
+          const bajuY = height * 0.12; // mulai agak di bawah dagu
           ctx.drawImage(baju, bajuX, bajuY, bajuWidth, bajuHeight);
         };
         baju.src = selectedBaju;
@@ -111,8 +111,8 @@
 if (selectedCelana) {
   const celana = new Image();
   celana.onload = () => {
-    const celanaWidth = width * 0.72;   // lebih lebar
-    const celanaHeight = height * 0.42; // lebih panjang
+    const celanaWidth = width * 0.62;   // lebih lebar
+    const celanaHeight = height * 0.432; // lebih panjang
     const celanaX = width * 0.14;       // geser sedikit biar center
     const celanaY = height * 0.55;      // mulai dari pinggang
     ctx.drawImage(celana, celanaX, celanaY, celanaWidth, celanaHeight);
@@ -124,4 +124,5 @@ if (selectedCelana) {
   </script>
 </body>
 </html>
+
 
