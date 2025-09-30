@@ -35,7 +35,7 @@
     async function startCamera() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { exact: "environment" } } // paksa kamera belakang
+          video: { facingMode: "environment"} // paksa kamera belakang
         });
         video.srcObject = stream;
       } catch (err) {
@@ -89,3 +89,4 @@
   </script>
 </body>
 </html>
+
