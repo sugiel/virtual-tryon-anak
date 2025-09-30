@@ -1,205 +1,116 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Virtual Try-On Hybrid (Masking)</title>
+  <meta charset="UTF-8">
+  <title>Kids Try-On (Baju + Celana)</title>
   <style>
-    body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial;display:flex;flex-direction:column;align-items:center;padding:16px;gap:12px;background:#f3f4f6}
-    h1{font-size:18px;margin:6px}
-    #wrap{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start;justify-content:center;width:100%;max-width:980px}
-    .panel{background:#fff;border-radius:10px;padding:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06)}
-    #preview, #result { width:320px; height:420px; background:#e9e9e9; border-radius:8px; display:flex;align-items:center;justify-content:center; overflow:hidden }
-    img{max-width:100%; max-height:100%}
-    .controls{display:flex;flex-direction:column;gap:8px}
-    .row{display:flex;gap:8px;align-items:center}
-    button{padding:10px 14px;border-radius:8px;background:#0b74de;color:#fff;border:none;cursor:pointer}
-    .small{padding:8px 10px;border-radius:8px;background:#fff;border:1px solid #ddd;cursor:pointer}
-    .thumbs{display:flex;gap:8px}
-    .thumbs img{width:60px;height:80px;object-fit:cover;border-radius:6px;border:2px solid transparent}
-    .thumbs img.selected{border-color:#0b74de}
-    #shopee{display:inline-block;padding:9px 14px;border-radius:8px;background:#ee4d2d;color:#fff;text-decoration:none;font-weight:700}
-    small{color:#666}
+    body { font-family: Arial, sans-serif; text-align: center; }
+    #video { display: none; }
+    canvas { border: 1px solid #ccc; max-width: 100%; }
+    .controls { margin: 10px; }
+    img.overlay { position: absolute; top: 0; left: 0; }
   </style>
-
-  <!-- MediaPipe libs -->
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/pose.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/pose.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
 </head>
 <body>
-  <h1>Virtual Try-On (Hybrid Masking)</h1>
+  <h2>👕👖 Kids Try-On (Baju + Celana)</h2>
 
-  <div id="wrap">
-    <div class="panel">
-      <div id="preview">Preview foto (upload dulu)</div>
-      <div style="margin-top:8px" class="controls">
-        <input id="fileInput" type="file" accept="image/*">
-        <div class="row">
-          <div class="thumbs">
-            <img id="t1" src="baju1.png" class="selected" onclick="selectThumb(1)">
-            <img id="t2" src="baju2.png" onclick="selectThumb(2)">
-            <img id="t3" src="baju3.png" onclick="selectThumb(3)">
-          </div>
-        </div>
-        <div class="row">
-          <button id="generateBtn" type="button">Generate Try-On</button>
-          <button id="downloadBtn" class="small" type="button" disabled>Download</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="panel">
-      <div id="result">Hasil akan muncul di sini</div>
-      <div style="margin-top:10px;display:flex;gap:8px;align-items:center">
-        <a id="shopee" href="https://shopee.co.id/ovikids.official" target="_blank">Beli di Shopee</a>
-      </div>
-    </div>
+  <div class="controls">
+    <label>Pilih Baju:</label>
+    <select id="bajuSelect">
+      <option value="baju1.png">Baju 1</option>
+      <option value="baju2.png">Baju 2</option>
+      <option value="baju3.png">Baju 3</option>
+    </select>
   </div>
 
-  <canvas id="offscreen" style="display:none;"></canvas>
+  <div class="controls">
+    <label>Pilih Celana:</label>
+    <select id="celanaSelect">
+      <option value="celana1.png">Celana 1</option>
+      <option value="celana2.png">Celana 2</option>
+      <option value="celana3.png">Celana 3</option>
+    </select>
+  </div>
+
+  <video id="video" playsinline></video>
+  <canvas id="output"></canvas>
 
   <script>
-    const fileInput = document.getElementById('fileInput');
-    const preview = document.getElementById('preview');
-    const resultBox = document.getElementById('result');
-    const generateBtn = document.getElementById('generateBtn');
-    const downloadBtn = document.getElementById('downloadBtn');
-    const offscreen = document.getElementById('offscreen');
-    const thumbs = [null, document.getElementById('t1'), document.getElementById('t2'), document.getElementById('t3')];
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("output");
+    const ctx = canvas.getContext("2d");
 
-    let uploadedImage = null;
-    let selected = 1;
+    const bajuSelect = document.getElementById("bajuSelect");
+    const celanaSelect = document.getElementById("celanaSelect");
 
-    function selectThumb(n){
-      selected = n;
-      thumbs.forEach((t,i)=>{ if(!t) return; t.classList.toggle('selected', i===n) });
-    }
+    let bajuImg = new Image();
+    let celanaImg = new Image();
+    bajuImg.src = bajuSelect.value;
+    celanaImg.src = celanaSelect.value;
 
-    fileInput.addEventListener('change', (ev)=>{
-      const f = ev.target.files[0];
-      if(!f) return;
-      const url = URL.createObjectURL(f);
-      const img = new Image();
-      img.onload = () => {
-        uploadedImage = img;
-        preview.innerHTML = '';
-        preview.appendChild(img);
-        resultBox.innerHTML = 'Hasil akan muncul di sini';
-        downloadBtn.disabled = true;
-      };
-      img.src = url;
+    bajuSelect.addEventListener("change", () => { bajuImg.src = bajuSelect.value; });
+    celanaSelect.addEventListener("change", () => { celanaImg.src = celanaSelect.value; });
+
+    // MediaPipe Pose setup
+    const pose = new Pose.Pose({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}`
+    });
+    pose.setOptions({
+      modelComplexity: 1,
+      smoothLandmarks: true,
+      enableSegmentation: true,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
     });
 
-    // MediaPipe
-    let latestPose = null;
-    let latestSegMask = null;
+    pose.onResults(onResults);
 
-    const pose = new Pose({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}` });
-    pose.setOptions({ modelComplexity: 0, smoothLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
-    pose.onResults((r)=>{ latestPose = r.poseLandmarks; });
+    const camera = new Camera(video, {
+      onFrame: async () => { await pose.send({image: video}); },
+      width: 640,
+      height: 480
+    });
+    camera.start();
 
-    const seg = new SelfieSegmentation({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}` });
-    seg.setOptions({ modelSelection: 1 });
-    seg.onResults((r)=>{ latestSegMask = r.segmentationMask; });
+    function onResults(results) {
+      canvas.width = results.image.width;
+      canvas.height = results.image.height;
 
-    async function analyseImage(img){
-      latestPose = null; latestSegMask = null;
-      await pose.send({image: img});
-      await seg.send({image: img});
-      return { pose: latestPose, segMask: latestSegMask };
-    }
+      // Gambar video asli
+      ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
 
-    async function generateTryOn(){
-      if(!uploadedImage){ alert('Silakan upload foto dulu'); return; }
-      generateBtn.disabled = true; generateBtn.innerText = 'Processing...';
+      if (results.poseLandmarks) {
+        const lm = results.poseLandmarks;
 
-      try {
-        await analyseImage(uploadedImage);
+        // Hitung bounding box untuk torso (baju)
+        const leftShoulder = lm[11];
+        const rightShoulder = lm[12];
+        const leftHip = lm[23];
+        const rightHip = lm[24];
 
-        const w = uploadedImage.naturalWidth;
-        const h = uploadedImage.naturalHeight;
-        offscreen.width = w;
-        offscreen.height = h;
-        const ctx = offscreen.getContext('2d');
-        ctx.clearRect(0,0,w,h);
-        ctx.drawImage(uploadedImage, 0, 0, w, h);
+        const torsoX = (leftShoulder.x + rightShoulder.x) / 2 * canvas.width;
+        const torsoY = (leftShoulder.y + rightShoulder.y) / 2 * canvas.height;
+        const torsoWidth = Math.abs(rightShoulder.x - leftShoulder.x) * canvas.width * 2;
+        const torsoHeight = Math.abs(leftHip.y - torsoY/canvas.height) * canvas.height * 1.3;
 
-        // Load baju
-        const bajuImg = new Image();
-        bajuImg.src = `baju${selected}.png`;
-        await new Promise(r => bajuImg.onload = r);
+        ctx.drawImage(bajuImg, torsoX - torsoWidth/2, torsoY, torsoWidth, torsoHeight);
 
-        // Default posisi baju
-        let bx = w*0.2, by = h*0.25, bw = w*0.6, bh = h*0.45;
+        // Hitung bounding box untuk celana
+        const midHipX = (leftHip.x + rightHip.x) / 2 * canvas.width;
+        const hipY = ((leftHip.y + rightHip.y) / 2) * canvas.height;
+        const leftKnee = lm[25];
+        const rightKnee = lm[26];
+        const kneeY = ((leftKnee.y + rightKnee.y) / 2) * canvas.height;
 
-        if(latestPose && latestPose.length){
-          const ls = latestPose[11], rs = latestPose[12], lh = latestPose[23], rh = latestPose[24];
-          if(ls && rs && lh && rh){
-            const shoulderW = Math.abs((rs.x - ls.x) * w);
-            const torsoH = Math.abs((lh.y - ls.y) * h);
-            const centerX = ((ls.x + rs.x) / 2) * w;
-            const topY = (ls.y * h) - (torsoH * 0.15);
-            bw = Math.max(shoulderW * 2.0, w*0.35);
-            bh = Math.max(torsoH * 1.4, h*0.25);
-            bx = centerX - bw/2;
-            by = topY;
-          }
-        }
+        const celanaWidth = Math.abs(rightHip.x - leftHip.x) * canvas.width * 2;
+        const celanaHeight = (kneeY - hipY) * 1.3;
 
-        // Canvas untuk baju
-        const bajuCanvas = document.createElement('canvas');
-        bajuCanvas.width = w; bajuCanvas.height = h;
-        const bctx = bajuCanvas.getContext('2d');
-        bctx.drawImage(bajuImg, bx, by, bw, bh);
-
-        // Apply segmentation (biar wajah & tangan tetap muncul)
-        if(latestSegMask){
-          const maskCanvas = document.createElement('canvas');
-          maskCanvas.width = w; maskCanvas.height = h;
-          const mctx = maskCanvas.getContext('2d');
-          mctx.drawImage(latestSegMask, 0, 0, w, h);
-
-          const maskData = mctx.getImageData(0,0,w,h);
-          const bajuData = bctx.getImageData(0,0,w,h);
-
-          for(let i=0; i<maskData.data.length; i+=4){
-            const alpha = maskData.data[i]; // 0=bg, 255=body
-            if(alpha < 128){ // background
-              bajuData.data[i+3] = 0; // transparan
-            }
-          }
-          bctx.putImageData(bajuData,0,0);
-        }
-
-        // Gabungkan
-        const final = document.createElement('canvas');
-        final.width = w; final.height = h;
-        const fctx = final.getContext('2d');
-        fctx.drawImage(uploadedImage, 0, 0, w, h);
-        fctx.drawImage(bajuCanvas, 0, 0, w, h);
-
-        resultBox.innerHTML = '';
-        const previewImg = new Image();
-        previewImg.src = final.toDataURL('image/png');
-        previewImg.onload = () => resultBox.appendChild(previewImg);
-
-        downloadBtn.disabled = false;
-        downloadBtn.onclick = () => {
-          const a = document.createElement('a');
-          a.href = final.toDataURL('image/png');
-          a.download = 'tryon_result.png';
-          a.click();
-        };
-      } catch (err) {
-        console.error(err);
-        alert('Terjadi error: ' + err.message);
-      } finally {
-        generateBtn.disabled = false;
-        generateBtn.innerText = 'Generate Try-On';
+        ctx.drawImage(celanaImg, midHipX - celanaWidth/2, hipY, celanaWidth, celanaHeight);
       }
     }
-
-    generateBtn.addEventListener('click', generateTryOn);
   </script>
 </body>
 </html>
