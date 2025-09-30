@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Try-On Foto (Baju + Celana)</title>
+  <title>Virtual Try-On Anak</title>
   <style>
     body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial;display:flex;flex-direction:column;align-items:center;padding:16px;gap:12px;background:#f3f4f6}
     h1{font-size:18px;margin:6px}
@@ -15,15 +15,15 @@
     .row{display:flex;gap:8px;align-items:center}
     button{padding:10px 14px;border-radius:8px;background:#0b74de;color:#fff;border:none;cursor:pointer}
     .small{padding:8px 10px;border-radius:8px;background:#fff;border:1px solid #ddd;cursor:pointer}
-    label{cursor:pointer}
-    .thumbs{display:flex;gap:8px;flex-wrap:wrap}
-    .thumbs img{width:60px;height:80px;object-fit:cover;border-radius:6px;border:2px solid transparent;cursor:pointer}
+    label{cursor:pointer;font-weight:600}
+    .thumbs{display:flex;gap:8px}
+    .thumbs img{width:60px;height:80px;object-fit:cover;border-radius:6px;border:2px solid transparent}
     .thumbs img.selected{border-color:#0b74de}
     #shopee{display:inline-block;padding:9px 14px;border-radius:8px;background:#ee4d2d;color:#fff;text-decoration:none;font-weight:700}
     small{color:#666}
   </style>
 
-  <!-- MediaPipe libs -->
+  <!-- MediaPipe -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/pose.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
 </head>
@@ -36,21 +36,21 @@
       <div style="margin-top:8px" class="controls">
         <input id="fileInput" type="file" accept="image/*">
 
-        <label>Pilih Baju:</label>
         <div class="row">
-          <div class="thumbs" id="bajuThumbs">
-            <img id="b1" src="baju1.png" class="selected" onclick="selectThumb('top',1)">
-            <img id="b2" src="baju2.png" onclick="selectThumb('top',2)">
-            <img id="b3" src="baju3.png" onclick="selectThumb('top',3)">
+          <label>Baju:</label>
+          <div class="thumbs">
+            <img id="b1" src="baju1.png" class="selected" onclick="selectBaju(1)">
+            <img id="b2" src="baju2.png" onclick="selectBaju(2)">
+            <img id="b3" src="baju3.png" onclick="selectBaju(3)">
           </div>
         </div>
 
-        <label>Pilih Celana:</label>
         <div class="row">
-          <div class="thumbs" id="celanaThumbs">
-            <img id="c1" src="celana1.png" class="selected" onclick="selectThumb('bottom',1)">
-            <img id="c2" src="celana2.png" onclick="selectThumb('bottom',2)">
-            <img id="c3" src="celana3.png" onclick="selectThumb('bottom',3)">
+          <label>Celana:</label>
+          <div class="thumbs">
+            <img id="c1" src="celana1.png" class="selected" onclick="selectCelana(1)">
+            <img id="c2" src="celana2.png" onclick="selectCelana(2)">
+            <img id="c3" src="celana3.png" onclick="selectCelana(3)">
           </div>
         </div>
 
@@ -66,7 +66,6 @@
       <div id="result">Hasil akan muncul di sini</div>
       <div style="margin-top:10px;display:flex;gap:8px;align-items:center">
         <a id="shopee" href="https://shopee.co.id/ovikids.official" target="_blank">Beli di Shopee</a>
-        <small>atau unduh lalu upload ke toko untuk belanja</small>
       </div>
     </div>
   </div>
@@ -74,7 +73,6 @@
   <canvas id="offscreen" style="display:none;"></canvas>
 
   <script>
-    // Elemen
     const fileInput = document.getElementById('fileInput');
     const preview = document.getElementById('preview');
     const resultBox = document.getElementById('result');
@@ -83,21 +81,16 @@
     const offscreen = document.getElementById('offscreen');
 
     let uploadedImage = null;
-    let selectedTop = 1;
-    let selectedBottom = 1;
+    let selectedBaju = 1;
+    let selectedCelana = 1;
 
-    function selectThumb(part,n){
-      if(part==="top"){
-        selectedTop = n;
-        document.querySelectorAll('#bajuThumbs img').forEach((el,i)=>{
-          el.classList.toggle('selected', i===n-1);
-        });
-      } else {
-        selectedBottom = n;
-        document.querySelectorAll('#celanaThumbs img').forEach((el,i)=>{
-          el.classList.toggle('selected', i===n-1);
-        });
-      }
+    function selectBaju(n){
+      selectedBaju = n;
+      [1,2,3].forEach(i=>document.getElementById('b'+i).classList.toggle('selected', i===n));
+    }
+    function selectCelana(n){
+      selectedCelana = n;
+      [1,2,3].forEach(i=>document.getElementById('c'+i).classList.toggle('selected', i===n));
     }
 
     fileInput.addEventListener('change', (ev)=>{
@@ -115,7 +108,6 @@
       img.src = url;
     });
 
-    // MediaPipe setup
     let latestPose = null;
     let latestSegMask = null;
 
@@ -149,47 +141,60 @@
         ctx.clearRect(0,0,w,h);
         ctx.drawImage(uploadedImage, 0, 0, w, h);
 
-        async function renderCloth(part, idx){
-          const clothImg = new Image();
-          clothImg.src = part==="top" ? `baju${idx}.png` : `celana${idx}.png`;
-          await new Promise(r => clothImg.onload = r);
+        const final = document.createElement('canvas');
+        final.width = w; final.height = h;
+        const fctx = final.getContext('2d');
+        fctx.drawImage(uploadedImage, 0, 0, w, h);
 
-          let bx, by, bw, bh;
-          if(part==="top"){
-            bx = w*0.2; by = h*0.25; bw = w*0.6; bh = h*0.45;
-          } else {
-            // celana lebih lebar & panjang
-            bx = w*0.18;
-            by = h*0.55;
-            bw = w*0.64;
-            bh = h*0.45;
+        if(latestPose && latestPose.length){
+          // --- Baju ---
+          const bajuImg = new Image();
+          bajuImg.src = `baju${selectedBaju}.png`;
+          await new Promise(r => bajuImg.onload = r);
+
+          const ls = latestPose[11], rs = latestPose[12], lh = latestPose[23], rh = latestPose[24];
+          if(ls && rs && lh && rh){
+            const shoulderW = Math.abs((rs.x - ls.x) * w);
+            const torsoH = Math.abs((lh.y - ls.y) * h);
+            const centerX = ((ls.x + rs.x) / 2) * w;
+            const topY = (ls.y * h) - (torsoH * 0.15);
+            let bw = Math.max(shoulderW * 2.0, w*0.35);
+            let bh = Math.max(torsoH * 1.4, h*0.25);
+            let bx = centerX - bw/2;
+            let by = topY;
+
+            fctx.drawImage(bajuImg, bx, by, bw, bh);
           }
 
-          const tmp = document.createElement('canvas');
-          tmp.width = w; tmp.height = h;
-          const tctx = tmp.getContext('2d');
-          tctx.drawImage(clothImg, bx, by, bw, bh);
+          // --- Celana ---
+          const celanaImg = new Image();
+          celanaImg.src = `celana${selectedCelana}.png`;
+          await new Promise(r => celanaImg.onload = r);
 
-          if(latestSegMask){
-            tctx.globalCompositeOperation = 'destination-in';
-            tctx.drawImage(latestSegMask, 0, 0, w, h);
-            tctx.globalCompositeOperation = 'source-over';
+          const lHip = latestPose[23], rHip = latestPose[24], lKnee = latestPose[25], rKnee = latestPose[26];
+          if(lHip && rHip && lKnee && rKnee){
+            const hipX = ((lHip.x + rHip.x)/2) * w;
+            const hipY = ((lHip.y + rHip.y)/2) * h;
+            const kneeY = ((lKnee.y + rKnee.y)/2) * h;
+
+            const bw = Math.abs((rHip.x - lHip.x) * w) * 2.2; // agak longgar
+            const bh = (kneeY - hipY) * 1.1; // sampai lutut
+            const bx = hipX - bw/2;
+            const by = hipY;
+
+            fctx.drawImage(celanaImg, bx, by, bw, bh);
           }
-          ctx.drawImage(tmp, 0, 0, w, h);
         }
-
-        await renderCloth('top', selectedTop);
-        await renderCloth('bottom', selectedBottom);
 
         resultBox.innerHTML = '';
         const previewImg = new Image();
-        previewImg.src = offscreen.toDataURL('image/png');
+        previewImg.src = final.toDataURL('image/png');
         previewImg.onload = () => resultBox.appendChild(previewImg);
 
         downloadBtn.disabled = false;
         downloadBtn.onclick = () => {
           const a = document.createElement('a');
-          a.href = offscreen.toDataURL('image/png');
+          a.href = final.toDataURL('image/png');
           a.download = 'tryon_result.png';
           a.click();
         };
