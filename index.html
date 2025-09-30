@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Try-On Foto (Client-side, mudah)</title>
+  <title>Virtual Try-On Hybrid (Masking)</title>
   <style>
     body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial;display:flex;flex-direction:column;align-items:center;padding:16px;gap:12px;background:#f3f4f6}
     h1{font-size:18px;margin:6px}
@@ -15,7 +15,6 @@
     .row{display:flex;gap:8px;align-items:center}
     button{padding:10px 14px;border-radius:8px;background:#0b74de;color:#fff;border:none;cursor:pointer}
     .small{padding:8px 10px;border-radius:8px;background:#fff;border:1px solid #ddd;cursor:pointer}
-    label{cursor:pointer}
     .thumbs{display:flex;gap:8px}
     .thumbs img{width:60px;height:80px;object-fit:cover;border-radius:6px;border:2px solid transparent}
     .thumbs img.selected{border-color:#0b74de}
@@ -28,7 +27,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
 </head>
 <body>
-  <h1>Virtual Try-On (Upload Foto → Hasil Cepat)</h1>
+  <h1>Virtual Try-On (Hybrid Masking)</h1>
 
   <div id="wrap">
     <div class="panel">
@@ -42,12 +41,10 @@
             <img id="t3" src="baju3.png" onclick="selectThumb(3)">
           </div>
         </div>
-
         <div class="row">
           <button id="generateBtn" type="button">Generate Try-On</button>
           <button id="downloadBtn" class="small" type="button" disabled>Download</button>
         </div>
-        <small>Tips: gunakan foto full-body (anak berdiri), pencahayaan terang → hasil lebih rapi.</small>
       </div>
     </div>
 
@@ -55,7 +52,6 @@
       <div id="result">Hasil akan muncul di sini</div>
       <div style="margin-top:10px;display:flex;gap:8px;align-items:center">
         <a id="shopee" href="https://shopee.co.id/ovikids.official" target="_blank">Beli di Shopee</a>
-        <small>atau unduh lalu upload ke toko untuk belanja</small>
       </div>
     </div>
   </div>
@@ -63,7 +59,6 @@
   <canvas id="offscreen" style="display:none;"></canvas>
 
   <script>
-    // Elemen
     const fileInput = document.getElementById('fileInput');
     const preview = document.getElementById('preview');
     const resultBox = document.getElementById('result');
@@ -95,7 +90,7 @@
       img.src = url;
     });
 
-    // MediaPipe setup
+    // MediaPipe
     let latestPose = null;
     let latestSegMask = null;
 
@@ -129,10 +124,12 @@
         ctx.clearRect(0,0,w,h);
         ctx.drawImage(uploadedImage, 0, 0, w, h);
 
+        // Load baju
         const bajuImg = new Image();
         bajuImg.src = `baju${selected}.png`;
         await new Promise(r => bajuImg.onload = r);
 
+        // Default posisi baju
         let bx = w*0.2, by = h*0.25, bw = w*0.6, bh = h*0.45;
 
         if(latestPose && latestPose.length){
@@ -146,27 +143,40 @@
             bh = Math.max(torsoH * 1.4, h*0.25);
             bx = centerX - bw/2;
             by = topY;
-            bx = Math.max(0, Math.min(bx, w-bw));
-            by = Math.max(0, Math.min(by, h-bh));
           }
         }
 
-        const tmp = document.createElement('canvas');
-        tmp.width = w; tmp.height = h;
-        const tctx = tmp.getContext('2d');
-        tctx.drawImage(bajuImg, bx, by, bw, bh);
+        // Canvas untuk baju
+        const bajuCanvas = document.createElement('canvas');
+        bajuCanvas.width = w; bajuCanvas.height = h;
+        const bctx = bajuCanvas.getContext('2d');
+        bctx.drawImage(bajuImg, bx, by, bw, bh);
 
+        // Apply segmentation (biar wajah & tangan tetap muncul)
         if(latestSegMask){
-          tctx.globalCompositeOperation = 'destination-in';
-          tctx.drawImage(latestSegMask, 0, 0, w, h);
-          tctx.globalCompositeOperation = 'source-over';
+          const maskCanvas = document.createElement('canvas');
+          maskCanvas.width = w; maskCanvas.height = h;
+          const mctx = maskCanvas.getContext('2d');
+          mctx.drawImage(latestSegMask, 0, 0, w, h);
+
+          const maskData = mctx.getImageData(0,0,w,h);
+          const bajuData = bctx.getImageData(0,0,w,h);
+
+          for(let i=0; i<maskData.data.length; i+=4){
+            const alpha = maskData.data[i]; // 0=bg, 255=body
+            if(alpha < 128){ // background
+              bajuData.data[i+3] = 0; // transparan
+            }
+          }
+          bctx.putImageData(bajuData,0,0);
         }
 
+        // Gabungkan
         const final = document.createElement('canvas');
         final.width = w; final.height = h;
         const fctx = final.getContext('2d');
         fctx.drawImage(uploadedImage, 0, 0, w, h);
-        fctx.drawImage(tmp, 0, 0, w, h);
+        fctx.drawImage(bajuCanvas, 0, 0, w, h);
 
         resultBox.innerHTML = '';
         const previewImg = new Image();
