@@ -1,161 +1,146 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>AI Virtual Try-On</title>
-<style>
-body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial;display:flex;flex-direction:column;align-items:center;padding:16px;gap:12px;background:#f3f4f6}
-h1{font-size:18px;margin:6px}
-#wrap{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start;justify-content:center;width:100%;max-width:980px}
-.panel{background:#fff;border-radius:10px;padding:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06)}
-#preview, #result { width:320px; height:420px; background:#e9e9e9; border-radius:8px; display:flex;align-items:center;justify-content:center; overflow:hidden }
-img{max-width:100%; max-height:100%}
-.controls{display:flex;flex-direction:column;gap:12px}
-.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-button{padding:10px 14px;border-radius:8px;background:#0b74de;color:#fff;border:none;cursor:pointer}
-.small{padding:8px 10px;border-radius:8px;background:#fff;border:1px solid #ddd;cursor:pointer}
-label{cursor:pointer}
-.thumbs{display:flex;gap:8px}
-.thumbs img{width:60px;height:80px;object-fit:cover;border-radius:6px;border:2px solid transparent;cursor:pointer}
-.thumbs img.selected{border-color:#0b74de}
-#shopee{display:inline-block;padding:9px 14px;border-radius:8px;background:#ee4d2d;color:#fff;text-decoration:none;font-weight:700}
-small{color:#666}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Virtual Try-On Anak</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; background:#f9f9f9; }
+    h1 { text-align: center; }
+    .container { display: flex; gap: 20px; justify-content: center; }
+    .box { background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 0 8px rgba(0,0,0,0.1); width: 320px; }
+    .preview img { max-width: 100%; border-radius: 10px; margin-top: 10px; }
+    .clothes { display: flex; gap: 10px; margin: 10px 0; flex-wrap: wrap; }
+    .clothes img { width: 80px; cursor: pointer; border:2px solid transparent; border-radius:8px; }
+    .clothes img.selected { border-color: blue; }
+    button { margin-top: 10px; padding: 10px 15px; border:none; border-radius:8px; cursor:pointer; }
+    #generateBtn { background:#007bff; color:white; }
+    #downloadBtn { background:#28a745; color:white; }
+    #shopeeBtn { background:#ff2d2d; color:white; width:100%; }
+    .tips { font-size:12px; color:#666; margin-top:10px; }
+  </style>
 </head>
 <body>
-<h1>AI Virtual Try-On</h1>
+  <h1>Virtual Try-On Anak</h1>
+  <div class="container">
+    <!-- Kiri -->
+    <div class="box">
+      <input type="file" id="uploadInput" accept="image/*">
+      <div class="preview" id="uploadPreview">Upload foto anak</div>
 
-<div id="wrap">
-  <div class="panel">
-    <div id="preview">Preview foto (upload dulu)</div>
-    <div style="margin-top:8px" class="controls">
-      <input id="fileInput" type="file" accept="image/*">
-
-      <div class="row">
-        <strong>Baju:</strong>
-        <div class="thumbs">
-          <img id="b1" src="baju1.png" class="selected" onclick="selectCloth('baju',1)">
-          <img id="b2" src="baju2.png" onclick="selectCloth('baju',2)">
-          <img id="b3" src="baju3.png" onclick="selectCloth('baju',3)">
-        </div>
+      <h3>Baju:</h3>
+      <div class="clothes" id="bajuOptions">
+        <img src="baju1.png" data-id="1">
+        <img src="baju2.png" data-id="2">
+        <img src="baju3.png" data-id="3">
       </div>
 
-      <div class="row">
-        <strong>Celana:</strong>
-        <div class="thumbs">
-          <img id="c1" src="celana1.png" class="selected" onclick="selectCloth('celana',1)">
-          <img id="c2" src="celana2.png" onclick="selectCloth('celana',2)">
-          <img id="c3" src="celana3.png" onclick="selectCloth('celana',3)">
-        </div>
+      <h3>Celana:</h3>
+      <div class="clothes" id="celanaOptions">
+        <img src="celana1.png" data-id="1">
+        <img src="celana2.png" data-id="2">
+        <img src="celana3.png" data-id="3">
       </div>
 
-      <div class="row">
-        <button id="generateBtn" type="button">Generate AI Try-On</button>
-        <button id="downloadBtn" class="small" type="button" disabled>Download</button>
-      </div>
-      <small>Tips: gunakan foto full-body, pencahayaan terang → hasil lebih rapi.</small>
+      <button id="generateBtn">Generate AI Try-On</button>
+      <button id="downloadBtn" disabled>Download</button>
+      <div class="tips">Tips: gunakan foto full-body, pencahayaan terang → hasil lebih rapi.</div>
+    </div>
+
+    <!-- Kanan -->
+    <div class="box">
+      <div id="resultBox">Hasil akan muncul di sini</div>
+      <button id="shopeeBtn" onclick="window.open('https://shopee.co.id/ovikids', '_blank')">Beli di Shopee</button>
     </div>
   </div>
 
-  <div class="panel">
-    <div id="result">Hasil akan muncul di sini</div>
-    <div style="margin-top:10px;display:flex;gap:8px;align-items:center">
-      <a id="shopee" href="https://shopee.co.id/ovikids.official" target="_blank">Beli di Shopee</a>
-    </div>
-  </div>
-</div>
+  <script>
+    const uploadInput = document.getElementById('uploadInput');
+    const uploadPreview = document.getElementById('uploadPreview');
+    const generateBtn = document.getElementById('generateBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const resultBox = document.getElementById('resultBox');
 
-<script>
-const fileInput = document.getElementById('fileInput');
-const preview = document.getElementById('preview');
-const resultBox = document.getElementById('result');
-const generateBtn = document.getElementById('generateBtn');
-const downloadBtn = document.getElementById('downloadBtn');
+    let uploadedFile = null;
+    let selectedBaju = null, selectedCelana = null;
 
-let uploadedFile = null;
-let uploadedImg = null;
-let selectedBaju = 1;
-let selectedCelana = 1;
-
-function selectCloth(type,n){
-  if(type==='baju'){
-    selectedBaju = n;
-    ['b1','b2','b3'].forEach((id,i)=>document.getElementById(id).classList.toggle('selected', i===n-1));
-  } else {
-    selectedCelana = n;
-    ['c1','c2','c3'].forEach((id,i)=>document.getElementById(id).classList.toggle('selected', i===n-1));
-  }
-}
-
-fileInput.addEventListener('change', ev=>{
-  const f = ev.target.files[0];
-  if(!f) return;
-  uploadedFile = f;
-  const url = URL.createObjectURL(f);
-  uploadedImg = new Image();
-  uploadedImg.onload = ()=> {
-    preview.innerHTML = '';
-    preview.appendChild(uploadedImg);
-    resultBox.innerHTML = 'Hasil akan muncul di sini';
-    downloadBtn.disabled = true;
-  };
-  uploadedImg.src = url;
-});
-
-// Fungsi generate AI
-async function generateTryOn(){
-  if(!uploadedImg){ alert('Upload foto dulu'); return; }
-
-  generateBtn.disabled = true;
-  generateBtn.innerText = 'Processing...';
-
-  const bajuMap = {1:'baju merah waffle sleeveless',2:'baju biru polos',3:'baju kuning ceria'};
-  const celanaMap = {1:'celana pendek putih',2:'celana jeans',3:'celana hitam polos'};
-
-  const prompt = `Ganti pakaian anak di foto ini dengan ${bajuMap[selectedBaju]} dan ${celanaMap[selectedCelana]}. Full-body, pose sama, background sama, studio quality.`;
-
-  const reader = new FileReader();
-  reader.onload = async ()=>{
-    const base64Img = reader.result;
-
-    try {
-      const response = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, image: base64Img })
-      });
-
-      const data = await response.json();
-
-      if(data.url){
-        resultBox.innerHTML = '';
-        const resultImg = new Image();
-        resultImg.src = data.url;
-        resultBox.appendChild(resultImg);
-
-        downloadBtn.disabled = false;
-        downloadBtn.onclick = ()=> {
-          const a = document.createElement('a');
-          a.href = data.url;
-          a.download = 'tryon_ai.png';
-          a.click();
-        };
-      } else {
-        alert('Gagal generate AI. Coba lagi.');
+    uploadInput.onchange = e=>{
+      const file = e.target.files[0];
+      if(file){
+        uploadedFile = file;
+        const img = document.createElement('img');
+        img.src = URL.createObjectURL(file);
+        uploadPreview.innerHTML = '';
+        uploadPreview.appendChild(img);
       }
-    } catch(err){
-      console.error(err);
-      alert('Terjadi error saat generate.');
-    }
+    };
 
-    generateBtn.disabled = false;
-    generateBtn.innerText = 'Generate AI Try-On';
-  };
-  reader.readAsDataURL(uploadedFile);
-}
+    document.querySelectorAll('#bajuOptions img').forEach(img=>{
+      img.onclick = ()=>{
+        document.querySelectorAll('#bajuOptions img').forEach(i=>i.classList.remove('selected'));
+        img.classList.add('selected');
+        selectedBaju = img.dataset.id;
+      };
+    });
+    document.querySelectorAll('#celanaOptions img').forEach(img=>{
+      img.onclick = ()=>{
+        document.querySelectorAll('#celanaOptions img').forEach(i=>i.classList.remove('selected'));
+        img.classList.add('selected');
+        selectedCelana = img.dataset.id;
+      };
+    });
 
-generateBtn.addEventListener('click', generateTryOn);
-</script>
+    generateBtn.onclick = ()=>{
+      if(!uploadedFile){ alert('Upload foto dulu'); return; }
+      if(!selectedBaju || !selectedCelana){ alert('Pilih baju dan celana dulu'); return; }
+
+      generateBtn.disabled = true;
+      generateBtn.innerText = 'Processing...';
+
+      const bajuMap = {1:'baju merah waffle sleeveless',2:'baju biru polos',3:'baju kuning ceria'};
+      const celanaMap = {1:'celana pendek putih',2:'celana jeans',3:'celana hitam polos'};
+
+      const prompt = `Ganti pakaian anak di foto ini dengan ${bajuMap[selectedBaju]} dan ${celanaMap[selectedCelana]}. Full-body, pose sama, background sama, studio quality.`;
+
+      const reader = new FileReader();
+      reader.onload = async ()=>{
+        const base64Img = reader.result;
+
+        try {
+          const response = await fetch("https://virtual-tryon-anak.vercel.app/api/generate", {
+            method: "POST",
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({ prompt, image: base64Img })
+          });
+
+          const data = await response.json();
+
+          if(data.url){
+            resultBox.innerHTML = '';
+            const resultImg = new Image();
+            resultImg.src = data.url;
+            resultBox.appendChild(resultImg);
+
+            downloadBtn.disabled = false;
+            downloadBtn.onclick = ()=>{
+              const a = document.createElement('a');
+              a.href = data.url;
+              a.download = 'tryon_ai.png';
+              a.click();
+            };
+          } else {
+            alert('Gagal generate AI. Coba lagi.');
+          }
+        } catch(err){
+          console.error(err);
+          alert('Error koneksi API.');
+        }
+
+        generateBtn.disabled = false;
+        generateBtn.innerText = 'Generate AI Try-On';
+      };
+      reader.readAsDataURL(uploadedFile);
+    };
+  </script>
 </body>
 </html>
