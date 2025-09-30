@@ -5,34 +5,71 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Virtual Try-On Anak</title>
   <style>
-    body { margin:0; display:flex; flex-direction:column; align-items:center; }
-    #container { position:relative; width:100%; max-width:400px; aspect-ratio:3/4; }
-    video, canvas { position:absolute; width:100%; height:100%; object-fit:cover; }
-    #baju { position:absolute; pointer-events:none; transform-origin:top center; }
-    #controls { margin-top:10px; }
-    select { padding:6px; font-size:14px; }
+    body {
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: #f0f0f0;
+    }
+    #container {
+      position: relative;
+      width: 100%;
+      max-width: 400px;
+      aspect-ratio: 3/4;
+      background: black;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    video, canvas {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    #baju {
+      position: absolute;
+      pointer-events: none;
+      transform-origin: top center;
+    }
+    #controls {
+      margin: 10px;
+    }
+    select {
+      padding: 6px;
+      font-size: 14px;
+      border-radius: 6px;
+    }
   </style>
 </head>
 <body>
+  <h3>Virtual Try-On Anak 👕</h3>
+
   <div id="container">
     <video id="video" autoplay playsinline muted></video>
     <canvas id="canvas"></canvas>
     <img id="baju" src="baju1.png" alt="Baju">
   </div>
+
   <div id="controls">
+    <label for="cameraSelect">Pilih Kamera:</label>
     <select id="cameraSelect"></select>
   </div>
 
+  <!-- MediaPipe Pose -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/pose.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
   <script>
     const video = document.getElementById("video");
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
     const baju = document.getElementById("baju");
     const cameraSelect = document.getElementById("cameraSelect");
+
     let currentStream, camera;
 
+    // Pose setup
     const pose = new Pose({
       locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}`,
     });
@@ -55,11 +92,13 @@
         if (ls && rs && lh && rh) {
           const shoulderWidth = Math.abs((rs.x - ls.x) * canvas.width);
           const torsoHeight = Math.abs((lh.y - ls.y) * canvas.height);
+
           const centerX = ((ls.x + rs.x) / 2) * canvas.width;
           const topY = (ls.y * canvas.height) - 40;
 
           const bajuWidth = shoulderWidth * 2;
           const bajuHeight = torsoHeight * 1.5;
+
           baju.style.width = bajuWidth + "px";
           baju.style.height = bajuHeight + "px";
           baju.style.left = (centerX - bajuWidth / 2) + "px";
@@ -68,6 +107,7 @@
       }
     });
 
+    // Start camera dengan deviceId tertentu
     async function startCamera(deviceId) {
       if (currentStream) {
         currentStream.getTracks().forEach(track => track.stop());
@@ -88,10 +128,11 @@
         });
         camera.start();
       } catch (err) {
-        console.error("Gagal start kamera:", err);
+        console.error("Gagal akses kamera:", err);
       }
     }
 
+    // Load daftar kamera
     async function loadCameras() {
       const devices = await navigator.mediaDevices.enumerateDevices();
       const videoDevices = devices.filter(d => d.kind === "videoinput");
