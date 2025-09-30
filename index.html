@@ -103,7 +103,7 @@ fileInput.addEventListener('change', ev=>{
   uploadedImg.src = url;
 });
 
-// Fungsi generate AI pakai image_gen ChatGPT
+// Fungsi generate AI
 async function generateTryOn(){
   if(!uploadedImg){ alert('Upload foto dulu'); return; }
 
@@ -113,36 +113,40 @@ async function generateTryOn(){
   const bajuMap = {1:'baju merah waffle sleeveless',2:'baju biru polos',3:'baju kuning ceria'};
   const celanaMap = {1:'celana pendek putih',2:'celana jeans',3:'celana hitam polos'};
 
-  const prompt = `Ganti pakaian anak di foto ini dengan ${bajuMap[selectedBaju]} dan ${celanaMap[selectedCelana]}. Full-body, mengikuti pose anak, pencahayaan natural, background sama seperti foto asli, realistis, studio quality.`;
+  const prompt = `Ganti pakaian anak di foto ini dengan ${bajuMap[selectedBaju]} dan ${celanaMap[selectedCelana]}. Full-body, pose sama, background sama, studio quality.`;
 
-  // Convert uploaded image ke base64
   const reader = new FileReader();
   reader.onload = async ()=>{
     const base64Img = reader.result;
 
-    // Panggil image_gen
-    const response = await window.imageGen?.generateImage({
-      prompt: prompt,
-      size: "512x768",
-      image: base64Img
-    });
+    try {
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, image: base64Img })
+      });
 
-    if(response && response[0]?.url){
-      const imgUrl = response[0].url;
-      resultBox.innerHTML = '';
-      const resultImg = new Image();
-      resultImg.src = imgUrl;
-      resultImg.onload = ()=> resultBox.appendChild(resultImg);
+      const data = await response.json();
 
-      downloadBtn.disabled = false;
-      downloadBtn.onclick = ()=> {
-        const a = document.createElement('a');
-        a.href = imgUrl;
-        a.download = 'tryon_ai.png';
-        a.click();
-      };
-    } else {
-      alert('Gagal generate AI. Coba lagi.');
+      if(data.url){
+        resultBox.innerHTML = '';
+        const resultImg = new Image();
+        resultImg.src = data.url;
+        resultBox.appendChild(resultImg);
+
+        downloadBtn.disabled = false;
+        downloadBtn.onclick = ()=> {
+          const a = document.createElement('a');
+          a.href = data.url;
+          a.download = 'tryon_ai.png';
+          a.click();
+        };
+      } else {
+        alert('Gagal generate AI. Coba lagi.');
+      }
+    } catch(err){
+      console.error(err);
+      alert('Terjadi error saat generate.');
     }
 
     generateBtn.disabled = false;
