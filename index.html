@@ -7,7 +7,7 @@
   <style>
     body {
       font-family: Arial, sans-serif;
-      background: #f7f7f7;
+      background: #f5f5f5;
       text-align: center;
       padding: 20px;
     }
@@ -55,22 +55,23 @@
 <body>
   <h1>Virtual Try-On Anak</h1>
   <div class="container">
+    <!-- Upload dan pilihan -->
     <div class="card">
       <input type="file" id="upload" accept="image/*"/><br/><br/>
-      <img id="preview" class="preview" src="" alt="Preview"/>
+      <img id="preview" class="preview" src="" alt="Foto anak"/>
       
       <h3>Baju:</h3>
       <div class="options" id="shirts">
-        <img src="https://via.placeholder.com/70x70/ff0000/ffffff?text=Merah" data-name="Baju Merah"/>
-        <img src="https://via.placeholder.com/70x70/00aa00/ffffff?text=Hijau" data-name="Baju Hijau"/>
-        <img src="https://via.placeholder.com/70x70/660000/ffffff?text=Coklat" data-name="Baju Coklat"/>
+        <img src="baju1.png" data-name="Baju 1"/>
+        <img src="baju2.png" data-name="Baju 2"/>
+        <img src="baju3.png" data-name="Baju 3"/>
       </div>
       
       <h3>Celana:</h3>
       <div class="options" id="pants">
-        <img src="https://via.placeholder.com/70x70/cccccc/000000?text=Abu" data-name="Celana Abu"/>
-        <img src="https://via.placeholder.com/70x70/99ccff/000000?text=Biru" data-name="Celana Biru"/>
-        <img src="https://via.placeholder.com/70x70/f2d16b/000000?text=Krem" data-name="Celana Krem"/>
+        <img src="celana1.png" data-name="Celana 1"/>
+        <img src="celana2.png" data-name="Celana 2"/>
+        <img src="celana3.png" data-name="Celana 3"/>
       </div>
 
       <button class="btn-generate" onclick="generateTryOn()">Generate AI Try-On</button>
@@ -78,6 +79,7 @@
       <p style="font-size:12px;color:#555">Tips: gunakan foto full-body, pencahayaan terang → hasil lebih rapi.</p>
     </div>
 
+    <!-- Hasil -->
     <div class="card">
       <h3>Hasil akan muncul di sini</h3>
       <img id="result" class="preview" src="" alt="Hasil AI"/>
@@ -91,6 +93,7 @@
   let selectedPants = "";
   let uploadedImage = "";
 
+  // upload foto
   document.getElementById("upload").addEventListener("change", function(e) {
     const file = e.target.files[0];
     const reader = new FileReader();
@@ -101,6 +104,7 @@
     reader.readAsDataURL(file);
   });
 
+  // pilih baju
   document.querySelectorAll("#shirts img").forEach(img => {
     img.addEventListener("click", function() {
       document.querySelectorAll("#shirts img").forEach(i=>i.classList.remove("selected"));
@@ -109,6 +113,7 @@
     });
   });
 
+  // pilih celana
   document.querySelectorAll("#pants img").forEach(img => {
     img.addEventListener("click", function() {
       document.querySelectorAll("#pants img").forEach(i=>i.classList.remove("selected"));
@@ -117,6 +122,7 @@
     });
   });
 
+  // kirim ke API Vercel
   async function generateTryOn() {
     if (!uploadedImage || !selectedShirt || !selectedPants) {
       alert("Upload foto dan pilih baju + celana dulu!");
@@ -143,6 +149,7 @@
     }
   }
 
+  // download hasil
   function downloadResult() {
     const resultImg = document.getElementById("result").src;
     if (!resultImg) { alert("Belum ada hasil."); return; }
