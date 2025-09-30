@@ -3,35 +3,34 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>AI Virtual Try-On</title>
+<title>AI Virtual Try-On Full</title>
 <style>
-  body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial;display:flex;flex-direction:column;align-items:center;padding:16px;gap:12px;background:#f3f4f6}
-  h1{font-size:18px;margin:6px}
-  #wrap{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start;justify-content:center;width:100%;max-width:980px}
-  .panel{background:#fff;border-radius:10px;padding:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06)}
-  #preview, #result { width:320px; height:420px; background:#e9e9e9; border-radius:8px; display:flex;align-items:center;justify-content:center; overflow:hidden }
-  img{max-width:100%; max-height:100%}
-  .controls{display:flex;flex-direction:column;gap:12px}
-  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-  button{padding:10px 14px;border-radius:8px;background:#0b74de;color:#fff;border:none;cursor:pointer}
-  .small{padding:8px 10px;border-radius:8px;background:#fff;border:1px solid #ddd;cursor:pointer}
-  label{cursor:pointer}
-  .thumbs{display:flex;gap:8px}
-  .thumbs img{width:60px;height:80px;object-fit:cover;border-radius:6px;border:2px solid transparent;cursor:pointer}
-  .thumbs img.selected{border-color:#0b74de}
-  #shopee{display:inline-block;padding:9px 14px;border-radius:8px;background:#ee4d2d;color:#fff;text-decoration:none;font-weight:700}
-  small{color:#666}
+body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial;display:flex;flex-direction:column;align-items:center;padding:16px;gap:12px;background:#f3f4f6}
+h1{font-size:18px;margin:6px}
+#wrap{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start;justify-content:center;width:100%;max-width:980px}
+.panel{background:#fff;border-radius:10px;padding:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06)}
+#preview, #result { width:320px; height:420px; background:#e9e9e9; border-radius:8px; display:flex;align-items:center;justify-content:center; overflow:hidden }
+img{max-width:100%; max-height:100%}
+.controls{display:flex;flex-direction:column;gap:12px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+button{padding:10px 14px;border-radius:8px;background:#0b74de;color:#fff;border:none;cursor:pointer}
+.small{padding:8px 10px;border-radius:8px;background:#fff;border:1px solid #ddd;cursor:pointer}
+label{cursor:pointer}
+.thumbs{display:flex;gap:8px}
+.thumbs img{width:60px;height:80px;object-fit:cover;border-radius:6px;border:2px solid transparent;cursor:pointer}
+.thumbs img.selected{border-color:#0b74de}
+#shopee{display:inline-block;padding:9px 14px;border-radius:8px;background:#ee4d2d;color:#fff;text-decoration:none;font-weight:700}
+small{color:#666}
 </style>
 </head>
 <body>
-<h1>AI Virtual Try-On (Upload Foto → Pilih Baju & Celana)</h1>
+<h1>AI Virtual Try-On Full</h1>
 
 <div id="wrap">
   <div class="panel">
     <div id="preview">Preview foto (upload dulu)</div>
     <div style="margin-top:8px" class="controls">
       <input id="fileInput" type="file" accept="image/*">
-
       <div class="row">
         <strong>Baju:</strong>
         <div class="thumbs">
@@ -40,7 +39,6 @@
           <img id="b3" src="baju3.png" onclick="selectCloth('baju',3)">
         </div>
       </div>
-
       <div class="row">
         <strong>Celana:</strong>
         <div class="thumbs">
@@ -49,12 +47,11 @@
           <img id="c3" src="celana3.png" onclick="selectCloth('celana',3)">
         </div>
       </div>
-
       <div class="row">
         <button id="generateBtn" type="button">Generate AI Try-On</button>
         <button id="downloadBtn" class="small" type="button" disabled>Download</button>
       </div>
-      <small>Tips: gunakan foto full-body (anak berdiri), pencahayaan terang → hasil lebih rapi.</small>
+      <small>Tips: gunakan foto full-body, pencahayaan terang → hasil lebih rapi.</small>
     </div>
   </div>
 
@@ -66,14 +63,19 @@
   </div>
 </div>
 
+<canvas id="maskCanvas" style="display:none;"></canvas>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
 <script>
 const fileInput = document.getElementById('fileInput');
 const preview = document.getElementById('preview');
 const resultBox = document.getElementById('result');
 const generateBtn = document.getElementById('generateBtn');
 const downloadBtn = document.getElementById('downloadBtn');
+const maskCanvas = document.getElementById('maskCanvas');
 
 let uploadedFile = null;
+let uploadedImg = null;
 let selectedBaju = 1;
 let selectedCelana = 1;
 
@@ -92,13 +94,37 @@ fileInput.addEventListener('change', ev=>{
   if(!f) return;
   uploadedFile = f;
   const url = URL.createObjectURL(f);
-  preview.innerHTML = '';
-  const img = new Image();
-  img.onload = ()=> preview.appendChild(img);
-  img.src = url;
-  resultBox.innerHTML = 'Hasil akan muncul di sini';
-  downloadBtn.disabled = true;
+  uploadedImg = new Image();
+  uploadedImg.onload = ()=> {
+    preview.innerHTML = '';
+    preview.appendChild(uploadedImg);
+    resultBox.innerHTML = 'Hasil akan muncul di sini';
+    downloadBtn.disabled = true;
+  };
+  uploadedImg.src = url;
 });
+
+// Segmentasi tubuh untuk masking baju/celana
+const seg = new SelfieSegmentation({modelSelection:1});
+seg.onResults(r=>{
+  const ctx = maskCanvas.getContext('2d');
+  maskCanvas.width = uploadedImg.naturalWidth;
+  maskCanvas.height = uploadedImg.naturalHeight;
+  ctx.clearRect(0,0,maskCanvas.width,maskCanvas.height);
+  ctx.drawImage(r.segmentationMask,0,0,maskCanvas.width,maskCanvas.height);
+});
+
+async function generateMask(){
+  return new Promise(async (resolve)=>{
+    await seg.send({image:uploadedImg});
+    // Dapatkan mask sebagai base64 PNG
+    maskCanvas.toBlob(blob=>{
+      const reader = new FileReader();
+      reader.onload = ()=> resolve(reader.result.split(',')[1]);
+      reader.readAsDataURL(blob);
+    });
+  });
+}
 
 // === OpenAI Image API Integration ===
 async function generateTryOn(){
@@ -108,30 +134,34 @@ async function generateTryOn(){
   generateBtn.innerText = 'Processing...';
 
   try {
-    // Baca file sebagai base64
-    const base64 = await new Promise((resolve, reject)=>{
+    // Base64 foto
+    const base64Img = await new Promise((resolve,reject)=>{
       const reader = new FileReader();
       reader.onload = ()=> resolve(reader.result.split(',')[1]);
       reader.onerror = err=> reject(err);
       reader.readAsDataURL(uploadedFile);
     });
 
-    // Pilih baju/celana berdasarkan index
-    const bajuMap = {1:'baju merah waffle',2:'baju biru polos',3:'baju kuning ceria'};
-    const celanaMap = {1:'celana pendek putih',2:'celana jeans',3:'celana hitam polos'};
-    const prompt = `Ganti pakaian anak di foto ini dengan ${bajuMap[selectedBaju]} dan ${celanaMap[selectedCelana]}. Hasil realistis full-body, mengikuti pose anak, pencahayaan natural, background sama seperti foto asli.`;
+    // Base64 mask otomatis
+    const maskBase64 = await generateMask();
 
-    // Panggil API OpenAI
+    // Prompt realistis
+    const bajuMap = {1:'baju merah waffle sleeveless',2:'baju biru polos',3:'baju kuning ceria'};
+    const celanaMap = {1:'celana pendek putih',2:'celana jeans',3:'celana hitam polos'};
+    const prompt = `Ganti pakaian anak di foto ini dengan ${bajuMap[selectedBaju]} dan ${celanaMap[selectedCelana]}. Full-body, mengikuti pose anak, pencahayaan natural, background tetap sama, realistis seperti foto studio.`;
+
+    // Panggil API OpenAI Edits
     const resp = await fetch('https://api.openai.com/v1/images/edits', {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer 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',
-        'Content-Type': 'application/json'
+      method:'POST',
+      headers:{
+        'Authorization':'Bearer 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',
+        'Content-Type':'application/json'
       },
       body: JSON.stringify({
-        image: `data:image/png;base64,${base64}`,
+        image: `data:image/png;base64,${base64Img}`,
+        mask: `data:image/png;base64,${maskBase64}`,
         prompt: prompt,
-        size: "512x512"
+        size: "512x768"
       })
     });
 
@@ -148,7 +178,7 @@ async function generateTryOn(){
     downloadBtn.onclick = ()=> {
       const a = document.createElement('a');
       a.href = imgUrl;
-      a.download = 'tryon_ai.png';
+      a.download = 'tryon_ai_full.png';
       a.click();
     };
 
