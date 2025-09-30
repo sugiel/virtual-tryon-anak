@@ -3,65 +3,68 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Virtual Try-On (Scale Sederhana)</title>
+  <title>Try-On Foto (Baju & Celana)</title>
   <style>
-    body{font-family:sans-serif;display:flex;flex-direction:column;align-items:center;padding:16px;background:#f9fafb}
-    h1{font-size:20px;margin:10px}
-    #wrap{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;max-width:1000px;width:100%}
-    .panel{background:#fff;border-radius:12px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,0.08)}
-    #preview, #result {width:320px;height:420px;background:#e5e7eb;border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden}
-    img{max-width:100%;max-height:100%}
-    .controls{display:flex;flex-direction:column;gap:10px;margin-top:10px}
-    .row{display:flex;gap:10px;flex-wrap:wrap}
+    body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial;display:flex;flex-direction:column;align-items:center;padding:16px;gap:12px;background:#f3f4f6}
+    h1{font-size:18px;margin:6px}
+    #wrap{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start;justify-content:center;width:100%;max-width:980px}
+    .panel{background:#fff;border-radius:10px;padding:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06)}
+    #preview, #result { width:320px; height:420px; background:#e9e9e9; border-radius:8px; display:flex;align-items:center;justify-content:center; overflow:hidden }
+    img{max-width:100%; max-height:100%}
+    .controls{display:flex;flex-direction:column;gap:12px}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    button{padding:10px 14px;border-radius:8px;background:#0b74de;color:#fff;border:none;cursor:pointer}
+    .small{padding:8px 10px;border-radius:8px;background:#fff;border:1px solid #ddd;cursor:pointer}
+    label{cursor:pointer}
+    .thumbs{display:flex;gap:8px}
     .thumbs img{width:60px;height:80px;object-fit:cover;border-radius:6px;border:2px solid transparent;cursor:pointer}
-    .thumbs img.selected{border-color:#2563eb}
-    button{padding:10px 16px;border:none;border-radius:8px;background:#2563eb;color:#fff;cursor:pointer}
-    .small{padding:8px 12px;background:#fff;border:1px solid #ddd;color:#333}
-    #shopee{background:#ee4d2d;padding:10px 16px;border-radius:8px;color:#fff;text-decoration:none;font-weight:700}
-    small{color:#555}
+    .thumbs img.selected{border-color:#0b74de}
+    #shopee{display:inline-block;padding:9px 14px;border-radius:8px;background:#ee4d2d;color:#fff;text-decoration:none;font-weight:700}
+    small{color:#666}
   </style>
 
-  <!-- MediaPipe Pose -->
+  <!-- MediaPipe -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/pose.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
 </head>
 <body>
-  <h1>Virtual Try-On (Baju + Celana)</h1>
+  <h1>Virtual Try-On (Upload Foto → Pilih Baju & Celana)</h1>
 
   <div id="wrap">
     <div class="panel">
-      <div id="preview">Upload foto dulu</div>
-      <div class="controls">
+      <div id="preview">Preview foto (upload dulu)</div>
+      <div style="margin-top:8px" class="controls">
         <input id="fileInput" type="file" accept="image/*">
 
         <div class="row">
-          <label>Baju:</label>
+          <strong>Baju:</strong>
           <div class="thumbs">
-            <img id="b1" src="baju1.png" class="selected" onclick="selectBaju(1)">
-            <img id="b2" src="baju2.png" onclick="selectBaju(2)">
-            <img id="b3" src="baju3.png" onclick="selectBaju(3)">
+            <img id="b1" src="baju1.png" class="selected" onclick="selectCloth('baju',1)">
+            <img id="b2" src="baju2.png" onclick="selectCloth('baju',2)">
+            <img id="b3" src="baju3.png" onclick="selectCloth('baju',3)">
           </div>
         </div>
 
         <div class="row">
-          <label>Celana:</label>
+          <strong>Celana:</strong>
           <div class="thumbs">
-            <img id="c1" src="celana1.png" class="selected" onclick="selectCelana(1)">
-            <img id="c2" src="celana2.png" onclick="selectCelana(2)">
-            <img id="c3" src="celana3.png" onclick="selectCelana(3)">
+            <img id="c1" src="celana1.png" class="selected" onclick="selectCloth('celana',1)">
+            <img id="c2" src="celana2.png" onclick="selectCloth('celana',2)">
+            <img id="c3" src="celana3.png" onclick="selectCloth('celana',3)">
           </div>
         </div>
 
         <div class="row">
-          <button id="generateBtn">Generate Try-On</button>
-          <button id="downloadBtn" class="small" disabled>Download</button>
+          <button id="generateBtn" type="button">Generate Try-On</button>
+          <button id="downloadBtn" class="small" type="button" disabled>Download</button>
         </div>
-        <small>Tips: gunakan foto full-body (anak berdiri), pencahayaan terang.</small>
+        <small>Tips: gunakan foto full-body (anak berdiri), pencahayaan terang → hasil lebih rapi.</small>
       </div>
     </div>
 
     <div class="panel">
       <div id="result">Hasil akan muncul di sini</div>
-      <div style="margin-top:12px">
+      <div style="margin-top:10px;display:flex;gap:8px;align-items:center">
         <a id="shopee" href="https://shopee.co.id/ovikids.official" target="_blank">Beli di Shopee</a>
       </div>
     </div>
@@ -81,16 +84,18 @@
     let selectedBaju = 1;
     let selectedCelana = 1;
 
-    const thumbsBaju = [null, document.getElementById('b1'), document.getElementById('b2'), document.getElementById('b3')];
-    const thumbsCelana = [null, document.getElementById('c1'), document.getElementById('c2'), document.getElementById('c3')];
-
-    function selectBaju(n){
-      selectedBaju = n;
-      thumbsBaju.forEach((t,i)=>{ if(!t) return; t.classList.toggle('selected', i===n) });
-    }
-    function selectCelana(n){
-      selectedCelana = n;
-      thumbsCelana.forEach((t,i)=>{ if(!t) return; t.classList.toggle('selected', i===n) });
+    function selectCloth(type, n){
+      if(type === 'baju'){
+        selectedBaju = n;
+        ['b1','b2','b3'].forEach((id,i)=>{
+          document.getElementById(id).classList.toggle('selected', i===n-1);
+        });
+      } else {
+        selectedCelana = n;
+        ['c1','c2','c3'].forEach((id,i)=>{
+          document.getElementById(id).classList.toggle('selected', i===n-1);
+        });
+      }
     }
 
     fileInput.addEventListener('change', (ev)=>{
@@ -108,82 +113,79 @@
       img.src = url;
     });
 
-    // Pose detection
-    let latestPose = null;
+    // Pose & Segmentasi
+    let latestPose = null, latestSegMask = null;
     const pose = new Pose({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}` });
     pose.setOptions({ modelComplexity: 0, smoothLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
     pose.onResults((r)=>{ latestPose = r.poseLandmarks; });
 
+    const seg = new SelfieSegmentation({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}` });
+    seg.setOptions({ modelSelection: 1 });
+    seg.onResults((r)=>{ latestSegMask = r.segmentationMask; });
+
     async function analyseImage(img){
-      latestPose = null;
+      latestPose = null; latestSegMask = null;
       await pose.send({image: img});
-      return latestPose;
+      await seg.send({image: img});
+      return { pose: latestPose, segMask: latestSegMask };
     }
 
     async function generateTryOn(){
-      if(!uploadedImage){ alert("Upload foto dulu"); return; }
-      generateBtn.disabled = true; generateBtn.innerText = "Processing...";
+      if(!uploadedImage){ alert('Upload foto dulu'); return; }
+      generateBtn.disabled = true; generateBtn.innerText = 'Processing...';
 
       try {
-        const poseLandmarks = await analyseImage(uploadedImage);
-        const w = uploadedImage.naturalWidth;
-        const h = uploadedImage.naturalHeight;
-        offscreen.width = w;
-        offscreen.height = h;
+        await analyseImage(uploadedImage);
+
+        const w = uploadedImage.naturalWidth, h = uploadedImage.naturalHeight;
+        offscreen.width = w; offscreen.height = h;
         const ctx = offscreen.getContext('2d');
         ctx.clearRect(0,0,w,h);
-        ctx.drawImage(uploadedImage, 0, 0, w, h);
+        ctx.drawImage(uploadedImage,0,0,w,h);
 
-        // Ambil tinggi badan
-        let headY = h*0.2, ankleY = h*0.9;
-        if(poseLandmarks){
-          headY = poseLandmarks[0].y * h;
-          ankleY = poseLandmarks[29].y * h;
-        }
-        const bodyHeight = ankleY - headY;
+        // === Render Baju ===
+        await renderCloth(`baju${selectedBaju}.png`, w, h, ctx, "top");
 
-        // --- Baju ---
-        const bajuImg = new Image();
-        bajuImg.src = `baju${selectedBaju}.png`;
-        await new Promise(r => bajuImg.onload = r);
+        // === Render Celana ===
+        await renderCloth(`celana${selectedCelana}.png`, w, h, ctx, "bottom");
 
-        const bajuH = bodyHeight * 0.45;
-        const bajuW = bajuH * (bajuImg.width / bajuImg.height);
-        const bajuX = (w/2) - (bajuW/2);
-        const bajuY = headY + bodyHeight*0.1;
-        ctx.drawImage(bajuImg, bajuX, bajuY, bajuW, bajuH);
-
-        // --- Celana ---
-        const celanaImg = new Image();
-        celanaImg.src = `celana${selectedCelana}.png`;
-        await new Promise(r => celanaImg.onload = r);
-
-        const celanaH = bodyHeight * 0.35;
-        const celanaW = celanaH * (celanaImg.width / celanaImg.height);
-        const celanaX = (w/2) - (celanaW/2);
-        const celanaY = headY + bodyHeight*0.55;
-        ctx.drawImage(celanaImg, celanaX, celanaY, celanaW, celanaH);
-
-        // --- Output ---
         resultBox.innerHTML = '';
-        const out = new Image();
-        out.src = offscreen.toDataURL('image/png');
-        out.onload = ()=> resultBox.appendChild(out);
+        const previewImg = new Image();
+        previewImg.src = offscreen.toDataURL('image/png');
+        previewImg.onload = () => resultBox.appendChild(previewImg);
 
         downloadBtn.disabled = false;
-        downloadBtn.onclick = ()=>{
+        downloadBtn.onclick = () => {
           const a = document.createElement('a');
           a.href = offscreen.toDataURL('image/png');
-          a.download = "tryon_result.png";
+          a.download = 'tryon_result.png';
           a.click();
         };
 
       } catch(err){
         console.error(err);
-        alert("Error: "+err.message);
+        alert('Error: ' + err.message);
       } finally {
-        generateBtn.disabled = false; generateBtn.innerText = "Generate Try-On";
+        generateBtn.disabled = false;
+        generateBtn.innerText = 'Generate Try-On';
       }
+    }
+
+    async function renderCloth(src, w, h, ctx, part){
+      return new Promise((resolve)=>{
+        const img = new Image();
+        img.onload = ()=>{
+          let bx,by,bw,bh;
+          if(part==="top"){
+            bx=w*0.2; by=h*0.25; bw=w*0.6; bh=h*0.45;
+          } else {
+            bx=w*0.25; by=h*0.55; bw=w*0.5; bh=h*0.4;
+          }
+          ctx.drawImage(img,bx,by,bw,bh);
+          resolve();
+        };
+        img.src=src;
+      });
     }
 
     generateBtn.addEventListener('click', generateTryOn);
