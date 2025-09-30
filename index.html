@@ -44,8 +44,8 @@
         </div>
 
         <div class="row">
-          <button id="generateBtn">Generate Try-On</button>
-          <button id="downloadBtn" class="small" disabled>Download</button>
+          <button id="generateBtn" type="button">Generate Try-On</button>
+          <button id="downloadBtn" class="small" type="button" disabled>Download</button>
         </div>
         <small>Tips: gunakan foto full-body (anak berdiri), pencahayaan terang → hasil lebih rapi.</small>
       </div>
@@ -89,7 +89,6 @@
         uploadedImage = img;
         preview.innerHTML = '';
         preview.appendChild(img);
-        // reset result & download
         resultBox.innerHTML = 'Hasil akan muncul di sini';
         downloadBtn.disabled = true;
       };
@@ -108,45 +107,35 @@
     seg.setOptions({ modelSelection: 1 });
     seg.onResults((r)=>{ latestSegMask = r.segmentationMask; });
 
-    // helper to run both processors on one image
     async function analyseImage(img){
       latestPose = null; latestSegMask = null;
       await pose.send({image: img});
       await seg.send({image: img});
-      // both handlers filled latestPose & latestSegMask
       return { pose: latestPose, segMask: latestSegMask };
     }
 
-    // main composite
     async function generateTryOn(){
       if(!uploadedImage){ alert('Silakan upload foto dulu'); return; }
       generateBtn.disabled = true; generateBtn.innerText = 'Processing...';
 
       try {
-        // run analysis
         await analyseImage(uploadedImage);
 
-        // prepare canvas
         const w = uploadedImage.naturalWidth;
         const h = uploadedImage.naturalHeight;
         offscreen.width = w;
         offscreen.height = h;
         const ctx = offscreen.getContext('2d');
-
-        // draw original photo as background
         ctx.clearRect(0,0,w,h);
         ctx.drawImage(uploadedImage, 0, 0, w, h);
 
-        // compute baju position/size using pose (if exists)
-        let bajuImg = new Image();
+        const bajuImg = new Image();
         bajuImg.src = `baju${selected}.png`;
         await new Promise(r => bajuImg.onload = r);
 
-        // default placement: center, 60% width
         let bx = w*0.2, by = h*0.25, bw = w*0.6, bh = h*0.45;
 
         if(latestPose && latestPose.length){
-          // landmarks indices: 11 left shoulder, 12 right shoulder, 23 left hip, 24 right hip
           const ls = latestPose[11], rs = latestPose[12], lh = latestPose[23], rh = latestPose[24];
           if(ls && rs && lh && rh){
             const shoulderW = Math.abs((rs.x - ls.x) * w);
@@ -157,43 +146,33 @@
             bh = Math.max(torsoH * 1.4, h*0.25);
             bx = centerX - bw/2;
             by = topY;
-            // clamp
             bx = Math.max(0, Math.min(bx, w-bw));
             by = Math.max(0, Math.min(by, h-bh));
           }
         }
 
-        // create temp canvas that contains baju in correct place
         const tmp = document.createElement('canvas');
         tmp.width = w; tmp.height = h;
         const tctx = tmp.getContext('2d');
-        tctx.clearRect(0,0,w,h);
         tctx.drawImage(bajuImg, bx, by, bw, bh);
 
-        // apply segmentation mask to tmp (keep baju only where mask says human)
         if(latestSegMask){
           tctx.globalCompositeOperation = 'destination-in';
-          // latestSegMask is an ImageBitmap-like — draw it stretched to full size
           tctx.drawImage(latestSegMask, 0, 0, w, h);
           tctx.globalCompositeOperation = 'source-over';
-        } else {
-          // if no mask, nothing else to do (baju will appear whole)
         }
 
-        // finally, draw original photo then composite masked baju on top
         const final = document.createElement('canvas');
         final.width = w; final.height = h;
         const fctx = final.getContext('2d');
         fctx.drawImage(uploadedImage, 0, 0, w, h);
         fctx.drawImage(tmp, 0, 0, w, h);
 
-        // show result scaled to preview area
         resultBox.innerHTML = '';
         const previewImg = new Image();
         previewImg.src = final.toDataURL('image/png');
         previewImg.onload = () => resultBox.appendChild(previewImg);
 
-        // enable download
         downloadBtn.disabled = false;
         downloadBtn.onclick = () => {
           const a = document.createElement('a');
@@ -203,7 +182,7 @@
         };
       } catch (err) {
         console.error(err);
-        alert('Terjadi error saat generate: ' + err.message);
+        alert('Terjadi error: ' + err.message);
       } finally {
         generateBtn.disabled = false;
         generateBtn.innerText = 'Generate Try-On';
@@ -211,13 +190,6 @@
     }
 
     generateBtn.addEventListener('click', generateTryOn);
-
-    // small helper: preload baju thumbs
-    (async ()=>{
-      await Promise.all([1,2,3].map(i=>{
-        return new Promise(r=>{ const im=new Image(); im.src=`baju${i}.png`; im.onload=r; });
-      }));
-    })();
   </script>
 </body>
 </html>
