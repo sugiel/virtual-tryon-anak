@@ -1,130 +1,223 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Virtual Try-On Anak</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Try-On Foto (Client-side, mudah)</title>
   <style>
-    body { margin: 0; overflow: hidden; background: #000; }
-    video, canvas {
-      position: absolute;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      object-fit: cover;
-    }
-    #canvas { z-index: 2; }
-    #controls {
-      position: absolute;
-      bottom: 10px; left: 50%;
-      transform: translateX(-50%);
-      display: flex; gap: 10px;
-      z-index: 3;
-    }
-    button {
-      padding: 8px 16px;
-      border: none; border-radius: 6px;
-      background: rgba(255,255,255,0.8);
-      font-weight: bold;
-    }
+    body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial;display:flex;flex-direction:column;align-items:center;padding:16px;gap:12px;background:#f3f4f6}
+    h1{font-size:18px;margin:6px}
+    #wrap{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start;justify-content:center;width:100%;max-width:980px}
+    .panel{background:#fff;border-radius:10px;padding:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06)}
+    #preview, #result { width:320px; height:420px; background:#e9e9e9; border-radius:8px; display:flex;align-items:center;justify-content:center; overflow:hidden }
+    img{max-width:100%; max-height:100%}
+    .controls{display:flex;flex-direction:column;gap:8px}
+    .row{display:flex;gap:8px;align-items:center}
+    button{padding:10px 14px;border-radius:8px;background:#0b74de;color:#fff;border:none;cursor:pointer}
+    .small{padding:8px 10px;border-radius:8px;background:#fff;border:1px solid #ddd;cursor:pointer}
+    label{cursor:pointer}
+    .thumbs{display:flex;gap:8px}
+    .thumbs img{width:60px;height:80px;object-fit:cover;border-radius:6px;border:2px solid transparent}
+    .thumbs img.selected{border-color:#0b74de}
+    #shopee{display:inline-block;padding:9px 14px;border-radius:8px;background:#ee4d2d;color:#fff;text-decoration:none;font-weight:700}
+    small{color:#666}
   </style>
 
-  <!-- MediaPipe -->
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/pose.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <!-- MediaPipe libs -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/pose.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
 </head>
 <body>
-  <video id="video" autoplay playsinline muted></video>
-  <canvas id="canvas"></canvas>
+  <h1>Virtual Try-On (Upload Foto → Hasil Cepat)</h1>
 
-  <!-- baju -->
-  <img id="baju1" src="baju1.png" style="display:none;">
-  <img id="baju2" src="baju2.png" style="display:none;">
-  <img id="baju3" src="baju3.png" style="display:none;">
+  <div id="wrap">
+    <div class="panel">
+      <div id="preview">Preview foto (upload dulu)</div>
+      <div style="margin-top:8px" class="controls">
+        <input id="fileInput" type="file" accept="image/*">
+        <div class="row">
+          <div class="thumbs">
+            <img id="t1" src="baju1.png" class="selected" onclick="selectThumb(1)">
+            <img id="t2" src="baju2.png" onclick="selectThumb(2)">
+            <img id="t3" src="baju3.png" onclick="selectThumb(3)">
+          </div>
+        </div>
 
-  <!-- tombol pilih baju -->
-  <div id="controls">
-    <button onclick="setBaju(1)">Baju 1</button>
-    <button onclick="setBaju(2)">Baju 2</button>
-    <button onclick="setBaju(3)">Baju 3</button>
+        <div class="row">
+          <button id="generateBtn">Generate Try-On</button>
+          <button id="downloadBtn" class="small" disabled>Download</button>
+        </div>
+        <small>Tips: gunakan foto full-body (anak berdiri), pencahayaan terang → hasil lebih rapi.</small>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div id="result">Hasil akan muncul di sini</div>
+      <div style="margin-top:10px;display:flex;gap:8px;align-items:center">
+        <a id="shopee" href="https://shopee.co.id/ovikids.official" target="_blank">Beli di Shopee</a>
+        <small>atau unduh lalu upload ke toko untuk belanja</small>
+      </div>
+    </div>
   </div>
 
+  <canvas id="offscreen" style="display:none;"></canvas>
+
   <script>
-    const video = document.getElementById("video");
-    const canvas = document.getElementById("canvas");
-    const ctx = canvas.getContext("2d");
+    // Elemen
+    const fileInput = document.getElementById('fileInput');
+    const preview = document.getElementById('preview');
+    const resultBox = document.getElementById('result');
+    const generateBtn = document.getElementById('generateBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const offscreen = document.getElementById('offscreen');
+    const thumbs = [null, document.getElementById('t1'), document.getElementById('t2'), document.getElementById('t3')];
 
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    let uploadedImage = null;
+    let selected = 1;
 
-    let currentBaju = document.getElementById("baju1");
-
-    function setBaju(num) {
-      currentBaju = document.getElementById("baju" + num);
+    function selectThumb(n){
+      selected = n;
+      thumbs.forEach((t,i)=>{ if(!t) return; t.classList.toggle('selected', i===n) });
     }
 
-    async function startCamera() {
-      try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const cams = devices.filter(d => d.kind === "videoinput");
-        let backCam = cams.find(c => c.label.toLowerCase().includes("back"));
+    fileInput.addEventListener('change', (ev)=>{
+      const f = ev.target.files[0];
+      if(!f) return;
+      const url = URL.createObjectURL(f);
+      const img = new Image();
+      img.onload = () => {
+        uploadedImage = img;
+        preview.innerHTML = '';
+        preview.appendChild(img);
+        // reset result & download
+        resultBox.innerHTML = 'Hasil akan muncul di sini';
+        downloadBtn.disabled = true;
+      };
+      img.src = url;
+    });
 
-        let constraints;
-        if (backCam) {
-          constraints = { video: { deviceId: { exact: backCam.deviceId } } };
-        } else {
-          // fallback iPhone / no label
-          constraints = { video: { facingMode: "environment" } };
+    // MediaPipe setup
+    let latestPose = null;
+    let latestSegMask = null;
+
+    const pose = new Pose({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}` });
+    pose.setOptions({ modelComplexity: 0, smoothLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+    pose.onResults((r)=>{ latestPose = r.poseLandmarks; });
+
+    const seg = new SelfieSegmentation({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}` });
+    seg.setOptions({ modelSelection: 1 });
+    seg.onResults((r)=>{ latestSegMask = r.segmentationMask; });
+
+    // helper to run both processors on one image
+    async function analyseImage(img){
+      latestPose = null; latestSegMask = null;
+      await pose.send({image: img});
+      await seg.send({image: img});
+      // both handlers filled latestPose & latestSegMask
+      return { pose: latestPose, segMask: latestSegMask };
+    }
+
+    // main composite
+    async function generateTryOn(){
+      if(!uploadedImage){ alert('Silakan upload foto dulu'); return; }
+      generateBtn.disabled = true; generateBtn.innerText = 'Processing...';
+
+      try {
+        // run analysis
+        await analyseImage(uploadedImage);
+
+        // prepare canvas
+        const w = uploadedImage.naturalWidth;
+        const h = uploadedImage.naturalHeight;
+        offscreen.width = w;
+        offscreen.height = h;
+        const ctx = offscreen.getContext('2d');
+
+        // draw original photo as background
+        ctx.clearRect(0,0,w,h);
+        ctx.drawImage(uploadedImage, 0, 0, w, h);
+
+        // compute baju position/size using pose (if exists)
+        let bajuImg = new Image();
+        bajuImg.src = `baju${selected}.png`;
+        await new Promise(r => bajuImg.onload = r);
+
+        // default placement: center, 60% width
+        let bx = w*0.2, by = h*0.25, bw = w*0.6, bh = h*0.45;
+
+        if(latestPose && latestPose.length){
+          // landmarks indices: 11 left shoulder, 12 right shoulder, 23 left hip, 24 right hip
+          const ls = latestPose[11], rs = latestPose[12], lh = latestPose[23], rh = latestPose[24];
+          if(ls && rs && lh && rh){
+            const shoulderW = Math.abs((rs.x - ls.x) * w);
+            const torsoH = Math.abs((lh.y - ls.y) * h);
+            const centerX = ((ls.x + rs.x) / 2) * w;
+            const topY = (ls.y * h) - (torsoH * 0.15);
+            bw = Math.max(shoulderW * 2.0, w*0.35);
+            bh = Math.max(torsoH * 1.4, h*0.25);
+            bx = centerX - bw/2;
+            by = topY;
+            // clamp
+            bx = Math.max(0, Math.min(bx, w-bw));
+            by = Math.max(0, Math.min(by, h-bh));
+          }
         }
 
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        video.srcObject = stream;
+        // create temp canvas that contains baju in correct place
+        const tmp = document.createElement('canvas');
+        tmp.width = w; tmp.height = h;
+        const tctx = tmp.getContext('2d');
+        tctx.clearRect(0,0,w,h);
+        tctx.drawImage(bajuImg, bx, by, bw, bh);
+
+        // apply segmentation mask to tmp (keep baju only where mask says human)
+        if(latestSegMask){
+          tctx.globalCompositeOperation = 'destination-in';
+          // latestSegMask is an ImageBitmap-like — draw it stretched to full size
+          tctx.drawImage(latestSegMask, 0, 0, w, h);
+          tctx.globalCompositeOperation = 'source-over';
+        } else {
+          // if no mask, nothing else to do (baju will appear whole)
+        }
+
+        // finally, draw original photo then composite masked baju on top
+        const final = document.createElement('canvas');
+        final.width = w; final.height = h;
+        const fctx = final.getContext('2d');
+        fctx.drawImage(uploadedImage, 0, 0, w, h);
+        fctx.drawImage(tmp, 0, 0, w, h);
+
+        // show result scaled to preview area
+        resultBox.innerHTML = '';
+        const previewImg = new Image();
+        previewImg.src = final.toDataURL('image/png');
+        previewImg.onload = () => resultBox.appendChild(previewImg);
+
+        // enable download
+        downloadBtn.disabled = false;
+        downloadBtn.onclick = () => {
+          const a = document.createElement('a');
+          a.href = final.toDataURL('image/png');
+          a.download = 'tryon_result.png';
+          a.click();
+        };
       } catch (err) {
-        console.error("Kamera gagal:", err);
-        alert("Tidak bisa akses kamera belakang, coba izinkan kamera di browser.");
+        console.error(err);
+        alert('Terjadi error saat generate: ' + err.message);
+      } finally {
+        generateBtn.disabled = false;
+        generateBtn.innerText = 'Generate Try-On';
       }
     }
 
-    function onResults(results) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+    generateBtn.addEventListener('click', generateTryOn);
 
-      if (results.poseLandmarks && currentBaju) {
-        const ls = results.poseLandmarks;
-
-        const leftShoulder = ls[11];
-        const rightShoulder = ls[12];
-        const leftHip = ls[23];
-        const rightHip = ls[24];
-
-        const centerX = (leftShoulder.x + rightShoulder.x) / 2 * canvas.width;
-        const centerY = (leftShoulder.y + rightHip.y) / 2 * canvas.height;
-
-        const bodyWidth = Math.abs(rightShoulder.x - leftShoulder.x) * canvas.width * 2;
-        const bodyHeight = Math.abs(rightHip.y - leftShoulder.y) * canvas.height * 1.3;
-
-        ctx.drawImage(currentBaju, centerX - bodyWidth/2, centerY - bodyHeight/2, bodyWidth, bodyHeight);
-      }
-    }
-
-    const pose = new Pose({
-      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}`
-    });
-    pose.setOptions({
-      modelComplexity: 1,
-      smoothLandmarks: true,
-      enableSegmentation: false,
-      minDetectionConfidence: 0.5,
-      minTrackingConfidence: 0.5
-    });
-    pose.onResults(onResults);
-
-    const camera = new Camera(video, {
-      onFrame: async () => { await pose.send({ image: video }); },
-      width: 640,
-      height: 480
-    });
-
-    startCamera().then(() => camera.start());
+    // small helper: preload baju thumbs
+    (async ()=>{
+      await Promise.all([1,2,3].map(i=>{
+        return new Promise(r=>{ const im=new Image(); im.src=`baju${i}.png`; im.onload=r; });
+      }));
+    })();
   </script>
 </body>
 </html>
