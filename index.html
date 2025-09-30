@@ -1,213 +1,124 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Virtual Try-On Anak</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kids Try-On</title>
   <style>
-    body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial;display:flex;flex-direction:column;align-items:center;padding:16px;gap:12px;background:#f3f4f6}
-    h1{font-size:18px;margin:6px}
-    #wrap{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start;justify-content:center;width:100%;max-width:980px}
-    .panel{background:#fff;border-radius:10px;padding:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06)}
-    #preview, #result { width:320px; height:420px; background:#e9e9e9; border-radius:8px; display:flex;align-items:center;justify-content:center; overflow:hidden }
-    img{max-width:100%; max-height:100%}
-    .controls{display:flex;flex-direction:column;gap:8px}
-    .row{display:flex;gap:8px;align-items:center}
-    button{padding:10px 14px;border-radius:8px;background:#0b74de;color:#fff;border:none;cursor:pointer}
-    .small{padding:8px 10px;border-radius:8px;background:#fff;border:1px solid #ddd;cursor:pointer}
-    label{cursor:pointer;font-weight:600}
-    .thumbs{display:flex;gap:8px}
-    .thumbs img{width:60px;height:80px;object-fit:cover;border-radius:6px;border:2px solid transparent}
-    .thumbs img.selected{border-color:#0b74de}
-    #shopee{display:inline-block;padding:9px 14px;border-radius:8px;background:#ee4d2d;color:#fff;text-decoration:none;font-weight:700}
-    small{color:#666}
+    body { font-family: sans-serif; max-width: 480px; margin: auto; padding: 1rem; }
+    .preview { width: 100%; margin-top: 1rem; text-align: center; }
+    canvas { max-width: 100%; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    .options { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 1rem; }
+    .options img { width: 70px; border: 2px solid transparent; border-radius: 8px; cursor: pointer; }
+    .options img.selected { border-color: blue; }
+    button { padding: 10px 16px; border: none; border-radius: 8px; background: #007bff; color: #fff; cursor: pointer; }
+    button:disabled { background: #aaa; }
+    .shop { margin-top: 1rem; }
+    .shop a { display: inline-block; background: #ff5722; color: white; padding: 12px 18px; border-radius: 8px; text-decoration: none; font-weight: bold; }
   </style>
-
-  <!-- MediaPipe -->
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/pose.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
 </head>
 <body>
-  <h1>Virtual Try-On (Baju + Celana)</h1>
+  <h2>👕 Pilih Baju:</h2>
+  <div class="options" id="bajuOptions"></div>
 
-  <div id="wrap">
-    <div class="panel">
-      <div id="preview">Preview foto (upload dulu)</div>
-      <div style="margin-top:8px" class="controls">
-        <input id="fileInput" type="file" accept="image/*">
+  <h2>👖 Pilih Celana:</h2>
+  <div class="options" id="celanaOptions"></div>
 
-        <div class="row">
-          <label>Baju:</label>
-          <div class="thumbs">
-            <img id="b1" src="baju1.png" class="selected" onclick="selectBaju(1)">
-            <img id="b2" src="baju2.png" onclick="selectBaju(2)">
-            <img id="b3" src="baju3.png" onclick="selectBaju(3)">
-          </div>
-        </div>
+  <input type="file" id="upload" accept="image/*">
+  <button id="generate" disabled>Generate Try-On</button>
 
-        <div class="row">
-          <label>Celana:</label>
-          <div class="thumbs">
-            <img id="c1" src="celana1.png" class="selected" onclick="selectCelana(1)">
-            <img id="c2" src="celana2.png" onclick="selectCelana(2)">
-            <img id="c3" src="celana3.png" onclick="selectCelana(3)">
-          </div>
-        </div>
-
-        <div class="row">
-          <button id="generateBtn" type="button">Generate Try-On</button>
-          <button id="downloadBtn" class="small" type="button" disabled>Download</button>
-        </div>
-        <small>Tips: gunakan foto full-body (anak berdiri), pencahayaan terang → hasil lebih rapi.</small>
-      </div>
-    </div>
-
-    <div class="panel">
-      <div id="result">Hasil akan muncul di sini</div>
-      <div style="margin-top:10px;display:flex;gap:8px;align-items:center">
-        <a id="shopee" href="https://shopee.co.id/ovikids.official" target="_blank">Beli di Shopee</a>
-      </div>
-    </div>
+  <div class="preview">
+    <canvas id="canvas"></canvas>
   </div>
 
-  <canvas id="offscreen" style="display:none;"></canvas>
+  <div class="shop">
+    <a href="https://shopee.co.id/ovikids.official" target="_blank">🛒 Beli di Shopee</a>
+  </div>
 
   <script>
-    const fileInput = document.getElementById('fileInput');
-    const preview = document.getElementById('preview');
-    const resultBox = document.getElementById('result');
-    const generateBtn = document.getElementById('generateBtn');
-    const downloadBtn = document.getElementById('downloadBtn');
-    const offscreen = document.getElementById('offscreen');
+    const bajuFiles = ["baju1.png", "baju2.png", "baju3.png"];
+    const celanaFiles = ["celana1.png", "celana2.png", "celana3.png"];
 
-    let uploadedImage = null;
-    let selectedBaju = 1;
-    let selectedCelana = 1;
+    const bajuOptions = document.getElementById("bajuOptions");
+    const celanaOptions = document.getElementById("celanaOptions");
+    const upload = document.getElementById("upload");
+    const generate = document.getElementById("generate");
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
 
-    function selectBaju(n){
-      selectedBaju = n;
-      [1,2,3].forEach(i=>document.getElementById('b'+i).classList.toggle('selected', i===n));
-    }
-    function selectCelana(n){
-      selectedCelana = n;
-      [1,2,3].forEach(i=>document.getElementById('c'+i).classList.toggle('selected', i===n));
-    }
+    let uploadedImg = null;
+    let selectedBaju = null;
+    let selectedCelana = null;
 
-    fileInput.addEventListener('change', (ev)=>{
-      const f = ev.target.files[0];
-      if(!f) return;
-      const url = URL.createObjectURL(f);
-      const img = new Image();
-      img.onload = () => {
-        uploadedImage = img;
-        preview.innerHTML = '';
-        preview.appendChild(img);
-        resultBox.innerHTML = 'Hasil akan muncul di sini';
-        downloadBtn.disabled = true;
-      };
-      img.src = url;
-    });
-
-    let latestPose = null;
-    let latestSegMask = null;
-
-    const pose = new Pose({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}` });
-    pose.setOptions({ modelComplexity: 0, smoothLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
-    pose.onResults((r)=>{ latestPose = r.poseLandmarks; });
-
-    const seg = new SelfieSegmentation({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}` });
-    seg.setOptions({ modelSelection: 1 });
-    seg.onResults((r)=>{ latestSegMask = r.segmentationMask; });
-
-    async function analyseImage(img){
-      latestPose = null; latestSegMask = null;
-      await pose.send({image: img});
-      await seg.send({image: img});
-      return { pose: latestPose, segMask: latestSegMask };
-    }
-
-    async function generateTryOn(){
-      if(!uploadedImage){ alert('Silakan upload foto dulu'); return; }
-      generateBtn.disabled = true; generateBtn.innerText = 'Processing...';
-
-      try {
-        await analyseImage(uploadedImage);
-
-        const w = uploadedImage.naturalWidth;
-        const h = uploadedImage.naturalHeight;
-        offscreen.width = w;
-        offscreen.height = h;
-        const ctx = offscreen.getContext('2d');
-        ctx.clearRect(0,0,w,h);
-        ctx.drawImage(uploadedImage, 0, 0, w, h);
-
-        const final = document.createElement('canvas');
-        final.width = w; final.height = h;
-        const fctx = final.getContext('2d');
-        fctx.drawImage(uploadedImage, 0, 0, w, h);
-
-        if(latestPose && latestPose.length){
-          // --- Baju ---
-          const bajuImg = new Image();
-          bajuImg.src = `baju${selectedBaju}.png`;
-          await new Promise(r => bajuImg.onload = r);
-
-          const ls = latestPose[11], rs = latestPose[12], lh = latestPose[23], rh = latestPose[24];
-          if(ls && rs && lh && rh){
-            const shoulderW = Math.abs((rs.x - ls.x) * w);
-            const torsoH = Math.abs((lh.y - ls.y) * h);
-            const centerX = ((ls.x + rs.x) / 2) * w;
-            const topY = (ls.y * h) - (torsoH * 0.15);
-            let bw = Math.max(shoulderW * 2.0, w*0.35);
-            let bh = Math.max(torsoH * 1.4, h*0.25);
-            let bx = centerX - bw/2;
-            let by = topY;
-
-            fctx.drawImage(bajuImg, bx, by, bw, bh);
-          }
-
-          // --- Celana ---
-          const celanaImg = new Image();
-          celanaImg.src = `celana${selectedCelana}.png`;
-          await new Promise(r => celanaImg.onload = r);
-
-          const lHip = latestPose[23], rHip = latestPose[24], lKnee = latestPose[25], rKnee = latestPose[26];
-          if(lHip && rHip && lKnee && rKnee){
-            const hipX = ((lHip.x + rHip.x)/2) * w;
-            const hipY = ((lHip.y + rHip.y)/2) * h;
-            const kneeY = ((lKnee.y + rKnee.y)/2) * h;
-
-            const bw = Math.abs((rHip.x - lHip.x) * w) * 2.2; // agak longgar
-            const bh = (kneeY - hipY) * 1.1; // sampai lutut
-            const bx = hipX - bw/2;
-            const by = hipY;
-
-            fctx.drawImage(celanaImg, bx, by, bw, bh);
-          }
-        }
-
-        resultBox.innerHTML = '';
-        const previewImg = new Image();
-        previewImg.src = final.toDataURL('image/png');
-        previewImg.onload = () => resultBox.appendChild(previewImg);
-
-        downloadBtn.disabled = false;
-        downloadBtn.onclick = () => {
-          const a = document.createElement('a');
-          a.href = final.toDataURL('image/png');
-          a.download = 'tryon_result.png';
-          a.click();
+    function renderOptions(container, files, type) {
+      files.forEach(f => {
+        const img = document.createElement("img");
+        img.src = f;
+        img.onclick = () => {
+          document.querySelectorAll(`#${container.id} img`).forEach(el => el.classList.remove("selected"));
+          img.classList.add("selected");
+          if (type === "baju") selectedBaju = f;
+          else selectedCelana = f;
+          if (uploadedImg) generate.disabled = false;
         };
-      } catch (err) {
-        console.error(err);
-        alert('Terjadi error: ' + err.message);
-      } finally {
-        generateBtn.disabled = false;
-        generateBtn.innerText = 'Generate Try-On';
-      }
+        container.appendChild(img);
+      });
     }
 
-    generateBtn.addEventListener('click', generateTryOn);
+    renderOptions(bajuOptions, bajuFiles, "baju");
+    renderOptions(celanaOptions, celanaFiles, "celana");
+
+    upload.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        uploadedImg = new Image();
+        uploadedImg.onload = () => {
+          canvas.width = uploadedImg.width;
+          canvas.height = uploadedImg.height;
+          ctx.drawImage(uploadedImg, 0, 0);
+          if (selectedBaju || selectedCelana) generate.disabled = false;
+        };
+        uploadedImg.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    };
+
+    generate.onclick = () => {
+      if (!uploadedImg) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(uploadedImg, 0, 0);
+
+      const height = uploadedImg.height;
+      const width = uploadedImg.width;
+
+      // --- BAJU ---
+      if (selectedBaju) {
+        const baju = new Image();
+        baju.onload = () => {
+          const bajuWidth = width * 0.7;
+          const bajuHeight = height * 0.45;
+          const bajuX = width * 0.15;
+          const bajuY = height * 0.18; // mulai agak di bawah dagu
+          ctx.drawImage(baju, bajuX, bajuY, bajuWidth, bajuHeight);
+        };
+        baju.src = selectedBaju;
+      }
+
+      // --- CELANA ---
+      if (selectedCelana) {
+        const celana = new Image();
+        celana.onload = () => {
+          const celanaWidth = width * 0.6;
+          const celanaHeight = height * 0.35;
+          const celanaX = width * 0.2;
+          const celanaY = height * 0.55; // mulai dari pinggang
+          ctx.drawImage(celana, celanaX, celanaY, celanaWidth, celanaHeight);
+        };
+        celana.src = selectedCelana;
+      }
+    };
   </script>
 </body>
 </html>
