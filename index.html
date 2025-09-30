@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Virtual Try-On Anak</title>
+  <title>Virtual Try-On Anak (Pose + Segmentation)</title>
   <style>
     body {
       margin: 0;
@@ -11,7 +11,6 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      flex-direction: column;
       height: 100vh;
     }
     #container {
@@ -23,55 +22,113 @@
       overflow: hidden;
       background: black;
     }
-    video {
+    canvas {
+      position: absolute;
       width: 100%;
       height: 100%;
       object-fit: cover;
     }
-    #baju {
-      position: absolute;
-      top: 25%;
-      left: 50%;
-      width: 60%;
-      transform: translateX(-50%);
-      pointer-events: none;
-    }
-    #pilihan {
-      margin-top: 15px;
-      display: flex;
-      gap: 10px;
-    }
-    #pilihan img {
-      width: 60px;
-      height: auto;
-      border: 2px solid #ccc;
-      border-radius: 8px;
-      cursor: pointer;
-    }
   </style>
 </head>
 <body>
-  <h2>👕 Virtual Try-On Anak</h2>
   <div id="container">
-    <video id="video" autoplay playsinline></video>
-    <img id="baju" src="baju1.png" alt="Baju Try-On">
+    <canvas id="output"></canvas>
   </div>
 
-  <div id="pilihan">
-    <img src="baju1.png" onclick="gantiBaju('baju1.png')">
-    <img src="baju2.png" onclick="gantiBaju('baju2.png')">
-    <img src="baju3.png" onclick="gantiBaju('baju3.png')">
-  </div>
+  <!-- MediaPipe Pose & Segmentation -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/pose.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 
   <script>
-    const video = document.getElementById("video");
-    navigator.mediaDevices.getUserMedia({ video: true })
-      .then(stream => { video.srcObject = stream; })
-      .catch(err => console.error("Tidak bisa akses kamera:", err));
+    const canvas = document.getElementById("output");
+    const ctx = canvas.getContext("2d");
 
-    function gantiBaju(file) {
-      document.getElementById("baju").src = file;
+    const videoElement = document.createElement("video");
+    videoElement.setAttribute("playsinline", "");
+    videoElement.muted = true;
+    videoElement.autoplay = true;
+
+    const baju = new Image();
+    baju.src = "baju1.png"; // siapkan PNG transparan
+
+    // === Pose Setup ===
+    const pose = new Pose({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}`,
+    });
+    pose.setOptions({
+      modelComplexity: 1,
+      smoothLandmarks: true,
+      enableSegmentation: false,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5,
+    });
+
+    // === Segmentation Setup ===
+    const selfieSegmentation = new SelfieSegmentation({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`,
+    });
+    selfieSegmentation.setOptions({ modelSelection: 1 });
+
+    let latestPose = null;
+    let latestSegmentation = null;
+
+    pose.onResults((results) => {
+      latestPose = results.poseLandmarks;
+    });
+
+    selfieSegmentation.onResults((results) => {
+      latestSegmentation = results.segmentationMask;
+      drawFrame(results.image);
+    });
+
+    function drawFrame(videoFrame) {
+      if (!latestPose || !latestSegmentation) return;
+
+      canvas.width = videoElement.videoWidth;
+      canvas.height = videoElement.videoHeight;
+
+      // Step 1: Gambar video dasar
+      ctx.drawImage(videoFrame, 0, 0, canvas.width, canvas.height);
+
+      // Step 2: Hitung posisi baju dari pose
+      const leftShoulder = latestPose[11];
+      const rightShoulder = latestPose[12];
+      const leftHip = latestPose[23];
+      const rightHip = latestPose[24];
+
+      if (leftShoulder && rightShoulder && leftHip && rightHip) {
+        const shoulderWidth = Math.abs((rightShoulder.x - leftShoulder.x) * canvas.width);
+        const torsoHeight = Math.abs((leftHip.y - leftShoulder.y) * canvas.height);
+
+        const centerX = ((leftShoulder.x + rightShoulder.x) / 2) * canvas.width;
+        const topY = (leftShoulder.y * canvas.height) - 40;
+
+        const bajuWidth = shoulderWidth * 2;
+        const bajuHeight = torsoHeight * 1.5;
+        const posX = centerX - bajuWidth / 2;
+        const posY = topY;
+
+        // Step 3: Gambar baju
+        ctx.drawImage(baju, posX, posY, bajuWidth, bajuHeight);
+
+        // Step 4: Terapkan mask segmentation → biar tangan/kepala bisa nutupin baju
+        ctx.globalCompositeOperation = "destination-in";
+        ctx.drawImage(latestSegmentation, 0, 0, canvas.width, canvas.height);
+        ctx.globalCompositeOperation = "source-over";
+      }
     }
+
+    // Kamera → kirim frame ke Pose & Segmentation
+    const camera = new Camera(videoElement, {
+      onFrame: async () => {
+        await pose.send({ image: videoElement });
+        await selfieSegmentation.send({ image: videoElement });
+      },
+      width: 400,
+      height: 600,
+    });
+    camera.start();
   </script>
 </body>
 </html>
