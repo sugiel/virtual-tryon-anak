@@ -1,41 +1,29 @@
+// api/generate.js
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+  // allow CORS preflight
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const { prompt, image } = req.body;
+    // baca body (Next.js/autoparsing biasanya bekerja untuk JSON)
+    const body = req.body || {};
+    // jika body kosong, tangani juga
+    const prompt = body.prompt || body.image || 'demo';
 
-    if (!prompt || !image) {
-      return res.status(400).json({ error: "Prompt dan image wajib diisi" });
-    }
-
-    // Contoh request ke OpenAI Images API (ganti API_KEY dengan kepunyaanmu di Vercel ENV)
-    const response = await fetch("https://api.openai.com/v1/images/generations", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-image-1",
-        prompt: prompt,
-        size: "512x512",
-        image: image, // base64 dari foto anak
-      }),
+    // Untuk debug: kembalikan gambar placeholder agar frontend bisa tampilkan hasil
+    return res.status(200).json({
+      url: 'https://via.placeholder.com/512x768.png?text=Demo+AI+Image'
     });
-
-    const data = await response.json();
-
-    if (data.error) {
-      return res.status(500).json({ error: data.error.message });
-    }
-
-    // Pastikan return-nya selalu { url: "..." } biar gampang dipakai di frontend
-    return res.status(200).json({ url: data.data[0].url });
-
-  } catch (error) {
-    console.error("API Error:", error);
-    return res.status(500).json({ error: "Server error" });
+  } catch (err) {
+    console.error('Handler error:', err);
+    return res.status(500).json({ error: err.message || 'Server error' });
   }
 }
