@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Virtual Try-On Anak</title>
+  <style>
+    body {
+      margin: 0;
+      background: #f0f0f0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      height: 100vh;
+    }
+    #container {
+      position: relative;
+      width: 100%;
+      max-width: 400px;
+      aspect-ratio: 3/4;
+      border-radius: 12px;
+      overflow: hidden;
+      background: black;
+    }
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    #baju {
+      position: absolute;
+      top: 25%;
+      left: 50%;
+      width: 60%;
+      transform: translateX(-50%);
+      pointer-events: none;
+    }
+    #pilihan {
+      margin-top: 15px;
+      display: flex;
+      gap: 10px;
+    }
+    #pilihan img {
+      width: 60px;
+      height: auto;
+      border: 2px solid #ccc;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h2>👕 Virtual Try-On Anak</h2>
+  <div id="container">
+    <video id="video" autoplay playsinline></video>
+    <img id="baju" src="baju1.png" alt="Baju Try-On">
+  </div>
+
+  <div id="pilihan">
+    <img src="baju1.png" onclick="gantiBaju('baju1.png')">
+    <img src="baju2.png" onclick="gantiBaju('baju2.png')">
+    <img src="baju3.png" onclick="gantiBaju('baju3.png')">
+  </div>
+
+  <script>
+    const video = document.getElementById("video");
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => { video.srcObject = stream; })
+      .catch(err => console.error("Tidak bisa akses kamera:", err));
+
+    function gantiBaju(file) {
+      document.getElementById("baju").src = file;
+    }
+  </script>
+</body>
+</html>
