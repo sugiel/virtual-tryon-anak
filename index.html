@@ -3,14 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Virtual Try-On Anak (Kamera Belakang)</title>
+  <title>Virtual Try-On Anak</title>
   <style>
     body {
       margin: 0;
       background: #f0f0f0;
       display: flex;
-      justify-content: center;
+      flex-direction: column;
       align-items: center;
+      justify-content: center;
       height: 100vh;
     }
     #container {
@@ -33,6 +34,19 @@
       pointer-events: none;
       transform-origin: top center;
     }
+    #controls {
+      margin-top: 10px;
+      display: flex;
+      gap: 10px;
+    }
+    button {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 8px;
+      background: #007bff;
+      color: white;
+      font-size: 14px;
+    }
   </style>
 </head>
 <body>
@@ -40,6 +54,11 @@
     <video id="video" autoplay playsinline muted></video>
     <canvas id="canvas"></canvas>
     <img id="baju" src="baju1.png" alt="Baju">
+  </div>
+
+  <div id="controls">
+    <button onclick="startCamera('user')">Kamera Depan</button>
+    <button onclick="startCamera('environment')">Kamera Belakang</button>
   </div>
 
   <!-- MediaPipe Pose -->
@@ -51,6 +70,7 @@
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
     const baju = document.getElementById("baju");
+    let camera;
 
     function resizeCanvas() {
       canvas.width = video.videoWidth;
@@ -61,7 +81,6 @@
     const pose = new Pose({
       locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}`,
     });
-
     pose.setOptions({
       modelComplexity: 1,
       smoothLandmarks: true,
@@ -75,18 +94,14 @@
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       if (results.poseLandmarks) {
-        const landmarks = results.poseLandmarks;
-        const leftShoulder = landmarks[11];
-        const rightShoulder = landmarks[12];
-        const leftHip = landmarks[23];
-        const rightHip = landmarks[24];
+        const lm = results.poseLandmarks;
+        const ls = lm[11], rs = lm[12], lh = lm[23], rh = lm[24];
+        if (ls && rs && lh && rh) {
+          const shoulderWidth = Math.abs((rs.x - ls.x) * canvas.width);
+          const torsoHeight = Math.abs((lh.y - ls.y) * canvas.height);
 
-        if (leftShoulder && rightShoulder && leftHip && rightHip) {
-          const shoulderWidth = Math.abs((rightShoulder.x - leftShoulder.x) * canvas.width);
-          const torsoHeight = Math.abs((leftHip.y - leftShoulder.y) * canvas.height);
-
-          const centerX = ((leftShoulder.x + rightShoulder.x) / 2) * canvas.width;
-          const topY = (leftShoulder.y * canvas.height) - 40;
+          const centerX = ((ls.x + rs.x) / 2) * canvas.width;
+          const topY = (ls.y * canvas.height) - 40;
 
           const bajuWidth = shoulderWidth * 2;
           const bajuHeight = torsoHeight * 1.5;
@@ -101,37 +116,29 @@
       }
     });
 
-    // Gunakan kamera belakang
-    navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { exact: "environment" } }
-    })
-    .then(stream => {
-      video.srcObject = stream;
-      const camera = new Camera(video, {
-        onFrame: async () => {
-          await pose.send({ image: video });
-        },
-        width: 400,
-        height: 600,
-      });
-      camera.start();
-    })
-    .catch(err => {
-      console.error("Tidak bisa akses kamera belakang:", err);
-      // fallback ke kamera depan
-      navigator.mediaDevices.getUserMedia({ video: true })
-        .then(stream => {
-          video.srcObject = stream;
-          const camera = new Camera(video, {
-            onFrame: async () => {
-              await pose.send({ image: video });
-            },
-            width: 400,
-            height: 600,
-          });
-          camera.start();
+    async function startCamera(facing) {
+      if (camera) camera.stop();
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { exact: facing } }
         });
-    });
+        video.srcObject = stream;
+
+        camera = new Camera(video, {
+          onFrame: async () => {
+            await pose.send({ image: video });
+          },
+          width: 400,
+          height: 600,
+        });
+        camera.start();
+      } catch (err) {
+        console.warn("Tidak bisa akses kamera:", facing, err);
+      }
+    }
+
+    // default mulai kamera depan
+    startCamera("user");
   </script>
 </body>
 </html>
