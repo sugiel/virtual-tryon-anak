@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Try-On Foto (Baju & Celana)</title>
+  <title>Try-On Foto (Baju + Celana)</title>
   <style>
     body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial;display:flex;flex-direction:column;align-items:center;padding:16px;gap:12px;background:#f3f4f6}
     h1{font-size:18px;margin:6px}
@@ -11,24 +11,24 @@
     .panel{background:#fff;border-radius:10px;padding:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06)}
     #preview, #result { width:320px; height:420px; background:#e9e9e9; border-radius:8px; display:flex;align-items:center;justify-content:center; overflow:hidden }
     img{max-width:100%; max-height:100%}
-    .controls{display:flex;flex-direction:column;gap:12px}
-    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .controls{display:flex;flex-direction:column;gap:8px}
+    .row{display:flex;gap:8px;align-items:center}
     button{padding:10px 14px;border-radius:8px;background:#0b74de;color:#fff;border:none;cursor:pointer}
     .small{padding:8px 10px;border-radius:8px;background:#fff;border:1px solid #ddd;cursor:pointer}
     label{cursor:pointer}
-    .thumbs{display:flex;gap:8px}
+    .thumbs{display:flex;gap:8px;flex-wrap:wrap}
     .thumbs img{width:60px;height:80px;object-fit:cover;border-radius:6px;border:2px solid transparent;cursor:pointer}
     .thumbs img.selected{border-color:#0b74de}
     #shopee{display:inline-block;padding:9px 14px;border-radius:8px;background:#ee4d2d;color:#fff;text-decoration:none;font-weight:700}
     small{color:#666}
   </style>
 
-  <!-- MediaPipe -->
+  <!-- MediaPipe libs -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/pose.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
 </head>
 <body>
-  <h1>Virtual Try-On (Upload Foto → Pilih Baju & Celana)</h1>
+  <h1>Virtual Try-On (Baju + Celana)</h1>
 
   <div id="wrap">
     <div class="panel">
@@ -36,21 +36,21 @@
       <div style="margin-top:8px" class="controls">
         <input id="fileInput" type="file" accept="image/*">
 
+        <label>Pilih Baju:</label>
         <div class="row">
-          <strong>Baju:</strong>
-          <div class="thumbs">
-            <img id="b1" src="baju1.png" class="selected" onclick="selectCloth('baju',1)">
-            <img id="b2" src="baju2.png" onclick="selectCloth('baju',2)">
-            <img id="b3" src="baju3.png" onclick="selectCloth('baju',3)">
+          <div class="thumbs" id="bajuThumbs">
+            <img id="b1" src="baju1.png" class="selected" onclick="selectThumb('top',1)">
+            <img id="b2" src="baju2.png" onclick="selectThumb('top',2)">
+            <img id="b3" src="baju3.png" onclick="selectThumb('top',3)">
           </div>
         </div>
 
+        <label>Pilih Celana:</label>
         <div class="row">
-          <strong>Celana:</strong>
-          <div class="thumbs">
-            <img id="c1" src="celana1.png" class="selected" onclick="selectCloth('celana',1)">
-            <img id="c2" src="celana2.png" onclick="selectCloth('celana',2)">
-            <img id="c3" src="celana3.png" onclick="selectCloth('celana',3)">
+          <div class="thumbs" id="celanaThumbs">
+            <img id="c1" src="celana1.png" class="selected" onclick="selectThumb('bottom',1)">
+            <img id="c2" src="celana2.png" onclick="selectThumb('bottom',2)">
+            <img id="c3" src="celana3.png" onclick="selectThumb('bottom',3)">
           </div>
         </div>
 
@@ -66,6 +66,7 @@
       <div id="result">Hasil akan muncul di sini</div>
       <div style="margin-top:10px;display:flex;gap:8px;align-items:center">
         <a id="shopee" href="https://shopee.co.id/ovikids.official" target="_blank">Beli di Shopee</a>
+        <small>atau unduh lalu upload ke toko untuk belanja</small>
       </div>
     </div>
   </div>
@@ -73,6 +74,7 @@
   <canvas id="offscreen" style="display:none;"></canvas>
 
   <script>
+    // Elemen
     const fileInput = document.getElementById('fileInput');
     const preview = document.getElementById('preview');
     const resultBox = document.getElementById('result');
@@ -81,19 +83,19 @@
     const offscreen = document.getElementById('offscreen');
 
     let uploadedImage = null;
-    let selectedBaju = 1;
-    let selectedCelana = 1;
+    let selectedTop = 1;
+    let selectedBottom = 1;
 
-    function selectCloth(type, n){
-      if(type === 'baju'){
-        selectedBaju = n;
-        ['b1','b2','b3'].forEach((id,i)=>{
-          document.getElementById(id).classList.toggle('selected', i===n-1);
+    function selectThumb(part,n){
+      if(part==="top"){
+        selectedTop = n;
+        document.querySelectorAll('#bajuThumbs img').forEach((el,i)=>{
+          el.classList.toggle('selected', i===n-1);
         });
       } else {
-        selectedCelana = n;
-        ['c1','c2','c3'].forEach((id,i)=>{
-          document.getElementById(id).classList.toggle('selected', i===n-1);
+        selectedBottom = n;
+        document.querySelectorAll('#celanaThumbs img').forEach((el,i)=>{
+          el.classList.toggle('selected', i===n-1);
         });
       }
     }
@@ -113,8 +115,10 @@
       img.src = url;
     });
 
-    // Pose & Segmentasi
-    let latestPose = null, latestSegMask = null;
+    // MediaPipe setup
+    let latestPose = null;
+    let latestSegMask = null;
+
     const pose = new Pose({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}` });
     pose.setOptions({ modelComplexity: 0, smoothLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
     pose.onResults((r)=>{ latestPose = r.poseLandmarks; });
@@ -131,23 +135,51 @@
     }
 
     async function generateTryOn(){
-      if(!uploadedImage){ alert('Upload foto dulu'); return; }
+      if(!uploadedImage){ alert('Silakan upload foto dulu'); return; }
       generateBtn.disabled = true; generateBtn.innerText = 'Processing...';
 
       try {
         await analyseImage(uploadedImage);
 
-        const w = uploadedImage.naturalWidth, h = uploadedImage.naturalHeight;
-        offscreen.width = w; offscreen.height = h;
+        const w = uploadedImage.naturalWidth;
+        const h = uploadedImage.naturalHeight;
+        offscreen.width = w;
+        offscreen.height = h;
         const ctx = offscreen.getContext('2d');
         ctx.clearRect(0,0,w,h);
-        ctx.drawImage(uploadedImage,0,0,w,h);
+        ctx.drawImage(uploadedImage, 0, 0, w, h);
 
-        // === Render Baju ===
-        await renderCloth(`baju${selectedBaju}.png`, w, h, ctx, "top");
+        async function renderCloth(part, idx){
+          const clothImg = new Image();
+          clothImg.src = part==="top" ? `baju${idx}.png` : `celana${idx}.png`;
+          await new Promise(r => clothImg.onload = r);
 
-        // === Render Celana ===
-        await renderCloth(`celana${selectedCelana}.png`, w, h, ctx, "bottom");
+          let bx, by, bw, bh;
+          if(part==="top"){
+            bx = w*0.2; by = h*0.25; bw = w*0.6; bh = h*0.45;
+          } else {
+            // celana lebih lebar & panjang
+            bx = w*0.18;
+            by = h*0.55;
+            bw = w*0.64;
+            bh = h*0.45;
+          }
+
+          const tmp = document.createElement('canvas');
+          tmp.width = w; tmp.height = h;
+          const tctx = tmp.getContext('2d');
+          tctx.drawImage(clothImg, bx, by, bw, bh);
+
+          if(latestSegMask){
+            tctx.globalCompositeOperation = 'destination-in';
+            tctx.drawImage(latestSegMask, 0, 0, w, h);
+            tctx.globalCompositeOperation = 'source-over';
+          }
+          ctx.drawImage(tmp, 0, 0, w, h);
+        }
+
+        await renderCloth('top', selectedTop);
+        await renderCloth('bottom', selectedBottom);
 
         resultBox.innerHTML = '';
         const previewImg = new Image();
@@ -161,31 +193,13 @@
           a.download = 'tryon_result.png';
           a.click();
         };
-
-      } catch(err){
+      } catch (err) {
         console.error(err);
-        alert('Error: ' + err.message);
+        alert('Terjadi error: ' + err.message);
       } finally {
         generateBtn.disabled = false;
         generateBtn.innerText = 'Generate Try-On';
       }
-    }
-
-    async function renderCloth(src, w, h, ctx, part){
-      return new Promise((resolve)=>{
-        const img = new Image();
-        img.onload = ()=>{
-          let bx,by,bw,bh;
-          if(part==="top"){
-            bx=w*0.2; by=h*0.25; bw=w*0.6; bh=h*0.45;
-          } else {
-            bx=w*0.25; by=h*0.55; bw=w*0.5; bh=h*0.4;
-          }
-          ctx.drawImage(img,bx,by,bw,bh);
-          resolve();
-        };
-        img.src=src;
-      });
     }
 
     generateBtn.addEventListener('click', generateTryOn);
