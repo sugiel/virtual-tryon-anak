@@ -3,25 +3,48 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Virtual Try-On Anak</title>
+  <title>Virtual Try-On Anak (Kamera Belakang)</title>
   <style>
-    body { margin: 0; text-align: center; background: #f5f5f5; }
-    video, canvas { 
-      position: absolute; 
-      top: 0; left: 0; 
-      width: 100%; height: 100%; 
-      object-fit: cover; 
+    body {
+      margin: 0;
+      background: #f0f0f0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
     }
-    #canvas { z-index: 2; }
+    #container {
+      position: relative;
+      width: 100%;
+      max-width: 400px;
+      aspect-ratio: 3/4;
+      border-radius: 12px;
+      overflow: hidden;
+      background: black;
+    }
+    video, canvas {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    #baju {
+      position: absolute;
+      pointer-events: none;
+      transform-origin: top center;
+    }
   </style>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/pose.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
 </head>
 <body>
-  <video id="video" autoplay playsinline muted></video>
-  <canvas id="canvas"></canvas>
-  <img id="baju" src="baju1.png" style="display:none;" />
+  <div id="container">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="canvas"></canvas>
+    <img id="baju" src="baju1.png" alt="Baju">
+  </div>
+
+  <!-- MediaPipe Pose -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/pose.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 
   <script>
     const video = document.getElementById("video");
@@ -29,64 +52,86 @@
     const ctx = canvas.getContext("2d");
     const baju = document.getElementById("baju");
 
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-
-    async function startCamera() {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment"} // paksa kamera belakang
-        });
-        video.srcObject = stream;
-      } catch (err) {
-        console.error("Gagal akses kamera belakang:", err);
-        alert("Browser tidak mengizinkan kamera belakang. Coba di Safari atau Chrome terbaru di iPhone.");
-      }
+    function resizeCanvas() {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
     }
 
-    function onResults(results) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
-
-      if (results.poseLandmarks) {
-        const ls = results.poseLandmarks;
-
-        // ambil bahu kiri & kanan untuk posisi baju
-        const leftShoulder = ls[11];
-        const rightShoulder = ls[12];
-        const leftHip = ls[23];
-        const rightHip = ls[24];
-
-        const centerX = (leftShoulder.x + rightShoulder.x) / 2 * canvas.width;
-        const centerY = (leftShoulder.y + rightHip.y) / 2 * canvas.height;
-
-        const bodyWidth = Math.abs(rightShoulder.x - leftShoulder.x) * canvas.width * 2;
-        const bodyHeight = Math.abs(rightHip.y - leftShoulder.y) * canvas.height * 1.3;
-
-        ctx.drawImage(baju, centerX - bodyWidth/2, centerY - bodyHeight/2, bodyWidth, bodyHeight);
-      }
-    }
-
+    // Pose setup
     const pose = new Pose({
-      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}`
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}`,
     });
+
     pose.setOptions({
       modelComplexity: 1,
       smoothLandmarks: true,
       enableSegmentation: false,
       minDetectionConfidence: 0.5,
-      minTrackingConfidence: 0.5
-    });
-    pose.onResults(onResults);
-
-    const camera = new Camera(video, {
-      onFrame: async () => { await pose.send({ image: video }); },
-      width: 640,
-      height: 480
+      minTrackingConfidence: 0.5,
     });
 
-    startCamera().then(() => camera.start());
+    pose.onResults((results) => {
+      resizeCanvas();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (results.poseLandmarks) {
+        const landmarks = results.poseLandmarks;
+        const leftShoulder = landmarks[11];
+        const rightShoulder = landmarks[12];
+        const leftHip = landmarks[23];
+        const rightHip = landmarks[24];
+
+        if (leftShoulder && rightShoulder && leftHip && rightHip) {
+          const shoulderWidth = Math.abs((rightShoulder.x - leftShoulder.x) * canvas.width);
+          const torsoHeight = Math.abs((leftHip.y - leftShoulder.y) * canvas.height);
+
+          const centerX = ((leftShoulder.x + rightShoulder.x) / 2) * canvas.width;
+          const topY = (leftShoulder.y * canvas.height) - 40;
+
+          const bajuWidth = shoulderWidth * 2;
+          const bajuHeight = torsoHeight * 1.5;
+          const posX = centerX - bajuWidth / 2;
+          const posY = topY;
+
+          baju.style.width = bajuWidth + "px";
+          baju.style.height = bajuHeight + "px";
+          baju.style.left = posX + "px";
+          baju.style.top = posY + "px";
+        }
+      }
+    });
+
+    // Gunakan kamera belakang
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { exact: "environment" } }
+    })
+    .then(stream => {
+      video.srcObject = stream;
+      const camera = new Camera(video, {
+        onFrame: async () => {
+          await pose.send({ image: video });
+        },
+        width: 400,
+        height: 600,
+      });
+      camera.start();
+    })
+    .catch(err => {
+      console.error("Tidak bisa akses kamera belakang:", err);
+      // fallback ke kamera depan
+      navigator.mediaDevices.getUserMedia({ video: true })
+        .then(stream => {
+          video.srcObject = stream;
+          const camera = new Camera(video, {
+            onFrame: async () => {
+              await pose.send({ image: video });
+            },
+            width: 400,
+            height: 600,
+          });
+          camera.start();
+        });
+    });
   </script>
 </body>
 </html>
-
