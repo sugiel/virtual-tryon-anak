@@ -106,19 +106,22 @@
         baju.src = selectedBaju;
       }
 
-      // --- CELANA ---
-      if (selectedCelana) {
-        const celana = new Image();
-        celana.onload = () => {
-          const celanaWidth = width * 0.6;
-          const celanaHeight = height * 0.35;
-          const celanaX = width * 0.2;
-          const celanaY = height * 0.55; // mulai dari pinggang
-          ctx.drawImage(celana, celanaX, celanaY, celanaWidth, celanaHeight);
-        };
-        celana.src = selectedCelana;
-      }
+
+    // --- CELANA ---
+if (selectedCelana) {
+  const celana = new Image();
+  celana.onload = () => {
+    const celanaWidth = width * 0.72;   // lebih lebar
+    const celanaHeight = height * 0.42; // lebih panjang
+    const celanaX = width * 0.14;       // geser sedikit biar center
+    const celanaY = height * 0.55;      // mulai dari pinggang
+    ctx.drawImage(celana, celanaX, celanaY, celanaWidth, celanaHeight);
+  };
+  celana.src = selectedCelana;
+}
+
     };
   </script>
 </body>
 </html>
+
