@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Virtual Try-On Anak (Pose + Segmentation)</title>
+  <title>Virtual Try-On Anak (Kamera Belakang)</title>
   <style>
     body {
       margin: 0;
@@ -22,40 +22,46 @@
       overflow: hidden;
       background: black;
     }
-    canvas {
+    video, canvas {
       position: absolute;
       width: 100%;
       height: 100%;
       object-fit: cover;
     }
+    #baju {
+      position: absolute;
+      pointer-events: none;
+      transform-origin: top center;
+    }
   </style>
 </head>
 <body>
   <div id="container">
-    <canvas id="output"></canvas>
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="canvas"></canvas>
+    <img id="baju" src="baju1.png" alt="Baju">
   </div>
 
-  <!-- MediaPipe Pose & Segmentation -->
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/pose.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
+  <!-- MediaPipe Pose -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/pose.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 
   <script>
-    const canvas = document.getElementById("output");
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
+    const baju = document.getElementById("baju");
 
-    const videoElement = document.createElement("video");
-    videoElement.setAttribute("playsinline", "");
-    videoElement.muted = true;
-    videoElement.autoplay = true;
+    function resizeCanvas() {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+    }
 
-    const baju = new Image();
-    baju.src = "baju1.png"; // siapkan PNG transparan
-
-    // === Pose Setup ===
+    // Pose setup
     const pose = new Pose({
       locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}`,
     });
+
     pose.setOptions({
       modelComplexity: 1,
       smoothLandmarks: true,
@@ -64,71 +70,68 @@
       minTrackingConfidence: 0.5,
     });
 
-    // === Segmentation Setup ===
-    const selfieSegmentation = new SelfieSegmentation({
-      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`,
-    });
-    selfieSegmentation.setOptions({ modelSelection: 1 });
-
-    let latestPose = null;
-    let latestSegmentation = null;
-
     pose.onResults((results) => {
-      latestPose = results.poseLandmarks;
-    });
+      resizeCanvas();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    selfieSegmentation.onResults((results) => {
-      latestSegmentation = results.segmentationMask;
-      drawFrame(results.image);
-    });
+      if (results.poseLandmarks) {
+        const landmarks = results.poseLandmarks;
+        const leftShoulder = landmarks[11];
+        const rightShoulder = landmarks[12];
+        const leftHip = landmarks[23];
+        const rightHip = landmarks[24];
 
-    function drawFrame(videoFrame) {
-      if (!latestPose || !latestSegmentation) return;
+        if (leftShoulder && rightShoulder && leftHip && rightHip) {
+          const shoulderWidth = Math.abs((rightShoulder.x - leftShoulder.x) * canvas.width);
+          const torsoHeight = Math.abs((leftHip.y - leftShoulder.y) * canvas.height);
 
-      canvas.width = videoElement.videoWidth;
-      canvas.height = videoElement.videoHeight;
+          const centerX = ((leftShoulder.x + rightShoulder.x) / 2) * canvas.width;
+          const topY = (leftShoulder.y * canvas.height) - 40;
 
-      // Step 1: Gambar video dasar
-      ctx.drawImage(videoFrame, 0, 0, canvas.width, canvas.height);
+          const bajuWidth = shoulderWidth * 2;
+          const bajuHeight = torsoHeight * 1.5;
+          const posX = centerX - bajuWidth / 2;
+          const posY = topY;
 
-      // Step 2: Hitung posisi baju dari pose
-      const leftShoulder = latestPose[11];
-      const rightShoulder = latestPose[12];
-      const leftHip = latestPose[23];
-      const rightHip = latestPose[24];
-
-      if (leftShoulder && rightShoulder && leftHip && rightHip) {
-        const shoulderWidth = Math.abs((rightShoulder.x - leftShoulder.x) * canvas.width);
-        const torsoHeight = Math.abs((leftHip.y - leftShoulder.y) * canvas.height);
-
-        const centerX = ((leftShoulder.x + rightShoulder.x) / 2) * canvas.width;
-        const topY = (leftShoulder.y * canvas.height) - 40;
-
-        const bajuWidth = shoulderWidth * 2;
-        const bajuHeight = torsoHeight * 1.5;
-        const posX = centerX - bajuWidth / 2;
-        const posY = topY;
-
-        // Step 3: Gambar baju
-        ctx.drawImage(baju, posX, posY, bajuWidth, bajuHeight);
-
-        // Step 4: Terapkan mask segmentation → biar tangan/kepala bisa nutupin baju
-        ctx.globalCompositeOperation = "destination-in";
-        ctx.drawImage(latestSegmentation, 0, 0, canvas.width, canvas.height);
-        ctx.globalCompositeOperation = "source-over";
+          baju.style.width = bajuWidth + "px";
+          baju.style.height = bajuHeight + "px";
+          baju.style.left = posX + "px";
+          baju.style.top = posY + "px";
+        }
       }
-    }
-
-    // Kamera → kirim frame ke Pose & Segmentation
-    const camera = new Camera(videoElement, {
-      onFrame: async () => {
-        await pose.send({ image: videoElement });
-        await selfieSegmentation.send({ image: videoElement });
-      },
-      width: 400,
-      height: 600,
     });
-    camera.start();
+
+    // Gunakan kamera belakang
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { exact: "environment" } }
+    })
+    .then(stream => {
+      video.srcObject = stream;
+      const camera = new Camera(video, {
+        onFrame: async () => {
+          await pose.send({ image: video });
+        },
+        width: 400,
+        height: 600,
+      });
+      camera.start();
+    })
+    .catch(err => {
+      console.error("Tidak bisa akses kamera belakang:", err);
+      // fallback ke kamera depan
+      navigator.mediaDevices.getUserMedia({ video: true })
+        .then(stream => {
+          video.srcObject = stream;
+          const camera = new Camera(video, {
+            onFrame: async () => {
+              await pose.send({ image: video });
+            },
+            width: 400,
+            height: 600,
+          });
+          camera.start();
+        });
+    });
   </script>
 </body>
 </html>
